@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.tsbuildinfo
+.env.local
+.env.*.local
+# terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl.bak
+crash.log
+# build artefacts
+/artifacts/
+.DS_Store

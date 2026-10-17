@@ -1,0 +1,61 @@
+# cp terraform.tfvars.example terraform.tfvars && terraform init && terraform apply
+subscription_id = "00000000-0000-0000-0000-000000000000"
+tenant_id       = "00000000-0000-0000-0000-000000000000"
+
+name_prefix    = "agentctl"
+environment    = "dev"
+location       = "eastus2"
+location_short = "eus2"
+tags           = { owner = "platform-team" }
+
+resource_group = { create = true }
+
+# Bring your own workspace / App Insights by flipping create = false and setting existing_id.
+log_analytics = { create = true, retention_days = 90 }
+app_insights  = { create = true }
+# log_analytics = { create = false, existing_id = "/subscriptions/.../resourceGroups/rg-monitor/providers/Microsoft.OperationalInsights/workspaces/law-central" }
+
+# Observe existing Foundry accounts (projects are discovered at runtime) ...
+foundry = {
+  create               = false
+  existing_account_ids = [
+    # "/subscriptions/.../resourceGroups/rg-ai-prod/providers/Microsoft.CognitiveServices/accounts/aif-contoso-prod",
+  ]
+}
+# ... or create a sandbox account + project wired to App Insights:
+# foundry = {
+#   create       = true
+#   project_name = "agents"
+#   model_deployments = {
+#     "gpt-4.1-mini" = { model_name = "gpt-4.1-mini", model_version = "2025-04-14", capacity = 50 }
+#   }
+# }
+
+# Entra group object ids
+app_role_assignments = {
+  reader   = [] # ["<group-object-id>"]
+  builder  = []
+  approver = []
+  admin    = []
+}
+# Same groups typically; grants Reader / Log Analytics Reader / Azure AI User for live mode.
+viewer_principal_ids = []
+
+# Exports sign-in + Graph activity logs to the workspace (P1/P2 + Security Admin required).
+# Leave false if the tenant already exports them to this workspace.
+entra_diagnostics   = { enabled = false }
+grant_admin_consent = false
+
+gitops = {
+  repo                = "https://github.com/contoso/agent-gitops"
+  base_path           = "agents"
+  agent_module_source = "git::https://github.com/contoso/infra-modules.git//foundry-agent?ref=v1.0.0"
+}
+
+approver_groups = {
+  read       = ["agent-owners"]
+  write      = ["agent-owners", "platform-security"]
+  privileged = ["agent-owners", "platform-security", "identity-admins"]
+}
+
+bundle_storage = { enabled = false }

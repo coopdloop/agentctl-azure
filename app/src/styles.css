@@ -1,0 +1,40 @@
+:root {
+  --page-bg: #fafafa;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --page-bg: #141414;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --page-bg: #141414;
+  color-scheme: dark;
+}
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--page-bg);
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+pre.code {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  overflow: auto;
+  font-family: ui-monospace, "Cascadia Code", Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.55;
+  max-height: 560px;
+  white-space: pre;
+}
+.diff-add { color: #107c10; }
+.diff-del { color: #c4314b; }
+.diff-hunk { color: #6250d6; }
+:root[data-theme="dark"] .diff-add { color: #54b054; }
+:root[data-theme="dark"] .diff-del { color: #e66767; }
+:root[data-theme="dark"] .diff-hunk { color: #9085e9; }
