@@ -37,14 +37,29 @@ function memo<T>(fn: () => Promise<T>, ttlMs = 60_000): () => Promise<T> {
   };
 }
 
+/** https://<account>.services.ai.azure.com/api/projects/<project> -> minimal project (no ARM metadata). */
+export function projectFromEndpoint(endpoint: string): arm.ProjectWithIdentity | undefined {
+  const m = endpoint.match(/^https:\/\/([^./]+)\.(?:services\.ai\.azure\.com|cognitiveservices\.azure\.com)\/api\/projects\/([^/?#]+)/i);
+  if (!m) return undefined;
+  // The subdomain is the account's custom subdomain, which defaults to the account name.
+  return { id: "", account: m[1], name: decodeURIComponent(m[2]), resourceGroup: "", location: "", endpoint: endpoint.replace(/\/$/, "") };
+}
+
 export class LiveDataSource implements DataSource {
   readonly kind = "live" as const;
 
   listProjects = memo(async () => {
-    const discovered = await arm.listProjects();
-    if (!config.azure.foundryProjectEndpoints.length) return discovered;
-    const wanted = new Set(config.azure.foundryProjectEndpoints.map((e) => e.replace(/\/$/, "").toLowerCase()));
-    return discovered.filter((p) => wanted.has(p.endpoint.replace(/\/$/, "").toLowerCase()));
+    const endpoints = config.azure.foundryProjectEndpoints;
+    if (!endpoints.length) return arm.listProjects();
+    // Users scoped to a project (Foundry User on the project only) can't list the parent account
+    // in ARM, so discovery misses their project. Fall back to the configured endpoint itself.
+    const discovered = await arm.listProjects().catch((e) => {
+      console.warn("projects: ARM discovery failed, using configured endpoints", e);
+      return [] as arm.ProjectWithIdentity[];
+    });
+    const norm = (e: string) => e.replace(/\/$/, "").toLowerCase();
+    const byEndpoint = new Map(discovered.map((p) => [norm(p.endpoint), p]));
+    return endpoints.map((e) => byEndpoint.get(norm(e)) ?? projectFromEndpoint(e)).filter((p): p is arm.ProjectWithIdentity => Boolean(p));
   });
 
   listDeployments = memo(() => arm.listDeployments());

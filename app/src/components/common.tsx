@@ -31,6 +31,7 @@ import {
 import type { UseQueryResult } from "@tanstack/react-query";
 import { useMemo, useState, type ReactNode } from "react";
 import { AuthRequiredError, consent } from "../auth/msal";
+import { ApiError } from "../api/live/http";
 import type { RiskTier } from "../config";
 import type { AuthFlowObserved } from "../api/types";
 
@@ -127,6 +128,22 @@ export function ErrorBar({ error, retry }: { error: unknown; retry?: () => void 
             Grant access
           </Button>
         </MessageBarActions>
+      </MessageBar>
+    );
+  }
+  if (error instanceof ApiError && error.status === 403) {
+    const what: Record<string, string> = {
+      logAnalytics: "telemetry in the Log Analytics workspace",
+      foundry: "agents in this Foundry project",
+      arm: "these Azure resources",
+      graph: "this directory data",
+    };
+    return (
+      <MessageBar intent="info">
+        <MessageBarBody>
+          <MessageBarTitle>Not available with your access</MessageBarTitle>
+          Your account can't read {what[error.source] ?? error.source}. Azure enforces this, not agentctl; ask an administrator if you need it.
+        </MessageBarBody>
       </MessageBar>
     );
   }

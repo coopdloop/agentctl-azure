@@ -85,3 +85,37 @@ resource "azurerm_role_assignment" "scope_project" {
   role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d"
   principal_id       = each.value.principal
 }
+
+# Telemetry for scoped users: a custom role that can query only the App Insights trace tables in
+# the workspace (table-level RBAC). Entra sign-in and Graph activity logs stay with Identity
+# readers / admins. Traces in a shared workspace are not split per scope; the UI filters them.
+locals {
+  telemetry_tables = ["AppDependencies", "AppRequests", "AppTraces", "AppExceptions"]
+  scope_telemetry_grants = merge([
+    for sname, sc in var.access_scopes : {
+      for gi, g in local.scope_groups[sname] : "${sname}|${gi}" => g
+    } if sc.telemetry
+  ]...)
+}
+
+resource "azurerm_role_definition" "telemetry_reader" {
+  count             = length(local.scope_telemetry_grants) > 0 ? 1 : 0
+  name              = "${var.role_groups.name_prefix} Telemetry Reader (${var.environment})"
+  scope             = local.law_id
+  description       = "Query agent traces (App Insights App* tables) in the agentctl workspace; no access to other tables."
+  assignable_scopes = [local.law_id]
+
+  permissions {
+    actions = concat(
+      ["Microsoft.OperationalInsights/workspaces/read", "Microsoft.OperationalInsights/workspaces/query/read"],
+      [for t in local.telemetry_tables : "Microsoft.OperationalInsights/workspaces/query/${t}/read"],
+    )
+  }
+}
+
+resource "azurerm_role_assignment" "scope_telemetry" {
+  for_each           = local.scope_telemetry_grants
+  scope              = local.law_id
+  role_definition_id = azurerm_role_definition.telemetry_reader[0].role_definition_resource_id
+  principal_id       = each.value
+}

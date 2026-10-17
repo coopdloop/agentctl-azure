@@ -149,6 +149,8 @@ variable "access_scopes" {
       project    = string
     }))
     agents = optional(list(string))
+    # Query agent traces (App* tables only, never sign-in/Graph logs) via a table-scoped custom role.
+    telemetry = optional(bool, true)
   }))
   default = {}
 }
