@@ -231,7 +231,7 @@
       "properties": {
         "name": { "type": "string", "pattern": "^[a-zA-Z0-9_-]{1,64}$" },
         "type": {
-          "enum": ["code_interpreter", "file_search", "bing_grounding", "azure_ai_search", "sharepoint_grounding", "fabric_dataagent", "browser_automation", "openapi", "mcp", "azure_function", "connected_agent"]
+          "enum": ["code_interpreter", "file_search", "bing_grounding", "azure_ai_search", "sharepoint_grounding", "fabric_dataagent", "browser_automation", "openapi", "mcp", "azure_function", "connected_agent", "function"]
         },
         "description": { "type": "string" },
         "riskTier": { "enum": ["read", "write", "privileged"] },
@@ -285,6 +285,13 @@
             "parametersSchema": { "type": "string" }
           }
         },
+        "function": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["parametersSchema", "strict"],
+          "description": "Client-executed function tool: the calling application runs the function and returns the result.",
+          "properties": { "parametersSchema": { "type": "string", "minLength": 2 }, "strict": { "type": "boolean" } }
+        },
         "connectedAgent": {
           "type": "object",
           "additionalProperties": false,
@@ -308,6 +315,7 @@
         { "if": { "properties": { "type": { "const": "mcp" } } }, "then": { "required": ["mcp"] } },
         { "if": { "properties": { "type": { "const": "azure_function" } } }, "then": { "required": ["azureFunction"] } },
         { "if": { "properties": { "type": { "const": "connected_agent" } } }, "then": { "required": ["connectedAgent"] } },
+        { "if": { "properties": { "type": { "const": "function" } } }, "then": { "required": ["function"] } },
         { "if": { "properties": { "type": { "enum": ["bing_grounding", "azure_ai_search", "sharepoint_grounding", "fabric_dataagent"] } } }, "then": { "required": ["connection"] } },
         { "if": { "properties": { "riskTier": { "const": "privileged" } } }, "then": { "properties": { "requireApproval": { "const": "always" } } } },
         { "if": { "properties": { "type": { "const": "browser_automation" } } }, "then": { "properties": { "riskTier": { "const": "privileged" } } } }

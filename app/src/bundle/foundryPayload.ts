@@ -90,6 +90,8 @@ function toolPayload(m: AgentManifest, t: ToolSpec): Record<string, unknown> {
         },
       };
     }
+    case "function":
+      return { type: "function", name: t.name, description: t.description ?? t.name, parameters: safeJson(t.function.parametersSchema), strict: t.function.strict };
     case "connected_agent":
       // Agent-to-agent: the target agent's A2A endpoint is resolved by the pipeline.
       return { type: "a2a_preview", base_url: `\${a2a_base_url:${t.connectedAgent.agentRef}}`, a2a_version: "0.3" };

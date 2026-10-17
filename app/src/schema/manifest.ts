@@ -17,7 +17,8 @@ export type ToolType =
   | "openapi"
   | "mcp"
   | "azure_function"
-  | "connected_agent";
+  | "connected_agent"
+  | "function";
 
 export type ApprovalMode = "always" | "never" | "write_only";
 
@@ -59,6 +60,11 @@ export interface FunctionTool extends ToolBase {
     parametersSchema?: string;
   };
 }
+/** Client-executed function: the calling app runs it and returns the output. */
+export interface FunctionCallTool extends ToolBase {
+  type: "function";
+  function: { parametersSchema: string; strict: boolean };
+}
 export interface ConnectedAgentTool extends ToolBase {
   type: "connected_agent";
   connectedAgent: { agentRef: string; delegationDescription: string };
@@ -72,7 +78,7 @@ export interface BuiltinTool extends ToolBase {
   builtin?: { vectorStoreIds?: string[]; allowedDomains?: string[] };
 }
 
-export type ToolSpec = OpenApiTool | McpTool | FunctionTool | ConnectedAgentTool | ConnectionTool | BuiltinTool;
+export type ToolSpec = OpenApiTool | McpTool | FunctionTool | FunctionCallTool | ConnectedAgentTool | ConnectionTool | BuiltinTool;
 
 export type AuthFlow = "delegated" | "obo" | "app";
 

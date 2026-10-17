@@ -74,6 +74,7 @@ export const TOOL_TYPE_INFO: Record<ToolType, { label: string; baseRisk: RiskTie
   openapi: { label: "OpenAPI 3 tool", baseRisk: "read", group: "Custom", blurb: "Call any REST API described by an OpenAPI spec." },
   mcp: { label: "MCP server", baseRisk: "write", group: "Custom", blurb: "Remote Model Context Protocol server with an allowlist of tools." },
   azure_function: { label: "Azure Function", baseRisk: "write", group: "Custom", blurb: "Queue-triggered Azure Function as a tool." },
+  function: { label: "Function (client-executed)", baseRisk: "write", group: "Custom", blurb: "The calling application executes the function and returns its output." },
   connected_agent: { label: "Connected agent (A2A)", baseRisk: "write", group: "Custom", blurb: "Delegate a sub-task to another Foundry agent." },
 };
 
@@ -93,6 +94,7 @@ export function inferToolRisk(tool: ToolSpec): RiskTier {
     const destructive = ops.some((o) => o.method === "DELETE");
     return destructive ? "privileged" : writes ? "write" : "read";
   }
+  if (tool.type === "function") return WRITE_VERBS.test(tool.name) ? "write" : "read";
   if (tool.type === "mcp") {
     const t = tool.mcp.allowedTools;
     if (t.length === 0) return "privileged"; // empty allowlist = every tool the server exposes
@@ -177,6 +179,17 @@ function toolFromFoundry(t: AgentTool, i: number): ToolSpec {
         requireApproval,
         azureFunction: { functionAppResourceId: "/subscriptions/unknown", functionName: t.detail ?? name, inputQueue: "in", outputQueue: "out" },
       };
+    case "function": {
+      const risk: RiskTier = /(create|update|delete|remove|send|post|write|put|patch|approve|grant|reset|execute|run|deploy)/i.test(name) ? "write" : "read";
+      return {
+        name,
+        type: "function",
+        description: t.description,
+        riskTier: risk,
+        requireApproval: risk === "read" ? "never" : "always",
+        function: { parametersSchema: JSON.stringify(t.parameters ?? { type: "object", properties: {} }), strict: t.strict ?? true },
+      };
+    }
     case "connected_agent":
       return { name, type: "connected_agent", riskTier: "write", requireApproval, connectedAgent: { agentRef: t.detail ?? name, delegationDescription: "Imported connected agent" } };
     case "bing_grounding":

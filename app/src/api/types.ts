@@ -30,6 +30,10 @@ export interface AgentTool {
   name: string;
   detail?: string;
   requireApproval?: string;
+  description?: string;
+  /** Function tools: JSON schema of the arguments, kept for round-tripping into manifests. */
+  parameters?: unknown;
+  strict?: boolean;
 }
 
 export interface Agent {

@@ -40,6 +40,8 @@ function blankTool(type: ToolType): ToolSpec {
       return { ...base, type, name: "my_mcp", mcp: { serverLabel: "my_mcp", serverUrl: "https://", allowedTools: [] } };
     case "azure_function":
       return { ...base, type, name: "my_function", azureFunction: { functionAppResourceId: "/subscriptions/", functionName: "", inputQueue: "agent-in", outputQueue: "agent-out" } };
+    case "function":
+      return { ...base, type, name: "my_function", function: { parametersSchema: '{"type":"object","properties":{},"additionalProperties":false}', strict: true } };
     case "connected_agent":
       return { ...base, type, name: "sub_agent", connectedAgent: { agentRef: "", delegationDescription: "" } };
     case "bing_grounding":
@@ -265,6 +267,17 @@ function TypeFields({ tool, setTool }: { tool: ToolSpec; setTool: (f: (t: ToolSp
             <Textarea rows={3} value={f.parametersSchema ?? ""} onChange={(_, d) => upd("azureFunction" as never, { parametersSchema: d.value || undefined })} />
           </Field>
         </Grid2>
+      );
+    }
+    case "function": {
+      const f = tool.function;
+      return (
+        <>
+          <Hint>The application calling the agent executes this function and returns its output; the agent only sees the result.</Hint>
+          <Field label="Parameters (JSON schema)" required>
+            <Textarea rows={5} value={f.parametersSchema} onChange={(_, d) => upd("function" as never, { parametersSchema: d.value })} style={{ fontFamily: "monospace" }} />
+          </Field>
+        </>
       );
     }
     case "connected_agent": {
