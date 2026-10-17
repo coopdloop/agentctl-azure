@@ -1,10 +1,10 @@
 output "app_url" {
   description = "agentctl URL."
-  value       = "https://${azurerm_linux_web_app.this.default_hostname}"
+  value       = var.app_service.enabled ? "https://${azurerm_linux_web_app.this[0].default_hostname}" : "(app_service disabled)"
 }
 
 output "web_app_name" {
-  value = azurerm_linux_web_app.this.name
+  value = var.app_service.enabled ? azurerm_linux_web_app.this[0].name : ""
 }
 
 output "resource_group_name" {

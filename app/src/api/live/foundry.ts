@@ -96,7 +96,23 @@ export async function listProjectAgents(p: FoundryProject): Promise<Agent[]> {
     temperature: a.temperature,
     topP: a.top_p,
     createdAt: new Date(a.created_at * 1000).toISOString(),
-    metadata: a.metadata ?? {},
-    owner: a.metadata?.["agentctl.owners"]?.split(",")[0],
+    metadata: normaliseMetadata(a.metadata ?? {}),
+    owner: a.metadata?.["agentctl.owners"]?.split(",")[0] ?? a.metadata?.owner,
   }));
+}
+
+/** agentctl writes namespaced keys (agentctl.team, ...); expose them under the plain names too. */
+function normaliseMetadata(md: Record<string, string>): Record<string, string> {
+  const alias: Record<string, string> = {
+    "agentctl.team": "team",
+    "agentctl.environment": "environment",
+    "agentctl.classification": "dataClassification",
+    "agentctl.instructions_version": "instructionsVersion",
+    "agentctl.owners": "owner",
+  };
+  const out = { ...md };
+  for (const [from, to] of Object.entries(alias)) {
+    if (md[from] && !md[to]) out[to] = from === "agentctl.owners" ? md[from].split(",")[0] : md[from];
+  }
+  return out;
 }

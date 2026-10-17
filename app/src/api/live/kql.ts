@@ -16,42 +16,62 @@ export const RANGE: Record<TimeRange, { ago: string; bin: string; timespan: stri
   "30d": { ago: "30d", bin: "1d", timespan: "P30D" },
 };
 
-/** Span operation names that represent one agent run (differs between SDK generations). */
-const RUN_OPS = `dynamic(["invoke_agent", "process_thread_run", "start_thread_run", "create_run"])`;
+/**
+ * Span operation names, across SDK generations:
+ * - OTel GenAI semconv: invoke_agent / execute_tool / chat
+ * - azure-ai-agents SDK (observed): start_thread_run (carries final status + token usage),
+ *   get_thread_run (polling), submit_tool_outputs (function tool results), create_message, ...
+ */
+const RUN_OPS = `dynamic(["invoke_agent", "start_thread_run", "process_thread_run", "create_run", "create_thread_and_run"])`;
+const TOOL_OPS = `dynamic(["execute_tool", "submit_tool_outputs"])`;
+export const RUN_OP_NAMES = ["invoke_agent", "start_thread_run", "process_thread_run", "create_run", "create_thread_and_run"];
 
 const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
-/** Normalised gen_ai spans with the agent name propagated from the run span to its children. */
+/**
+ * Normalised gen_ai spans.
+ * - runKey: gen_ai.thread.run.id when present (the SDK emits each call as its own trace, so
+ *   OperationId alone splits one run), else OperationId.
+ * - agentKey: gen_ai.agent.name if emitted, else the agent id (asst_...) propagated across the run.
+ *   The live data source maps ids to names using the Foundry agent list.
+ */
 function genAiSpans(range: TimeRange) {
   return `
 let RunOps = ${RUN_OPS};
+let ToolOps = ${TOOL_OPS};
 let spans = AppDependencies
   | where TimeGenerated > ago(${RANGE[range].ago})
   | extend op = tostring(Properties["gen_ai.operation.name"])
   | where isnotempty(op)
-  | extend agent  = coalesce(tostring(Properties["gen_ai.agent.name"]), tostring(Properties["gen_ai.agent.id"])),
-           inTok  = toint(Properties["gen_ai.usage.input_tokens"]),
-           outTok = toint(Properties["gen_ai.usage.output_tokens"]),
-           tool   = tostring(Properties["gen_ai.tool.name"]),
-           model  = tostring(Properties["gen_ai.request.model"]),
-           thread = tostring(Properties["gen_ai.thread.id"]),
-           flow   = tostring(Properties["agentctl.auth_flow"]),
-           usr    = coalesce(tostring(Properties["enduser.id"]), UserAuthenticatedId, UserId);
-let runAgent = spans | where op in (RunOps) and isnotempty(agent) | summarize runAgentName = take_any(agent) by OperationId;
+  | extend agentId   = coalesce(tostring(Properties["gen_ai.agent.id"]), tostring(Properties["microsoft.gen_ai.main_agent.id"])),
+           agentAttr = tostring(Properties["gen_ai.agent.name"]),
+           runKey    = coalesce(tostring(Properties["gen_ai.thread.run.id"]), OperationId),
+           runStatus = tostring(Properties["gen_ai.thread.run.status"]),
+           inTok     = toint(Properties["gen_ai.usage.input_tokens"]),
+           outTok    = toint(Properties["gen_ai.usage.output_tokens"]),
+           tool      = coalesce(tostring(Properties["gen_ai.tool.name"]), iff(op == "submit_tool_outputs", "function_tool", "")),
+           model     = coalesce(tostring(Properties["gen_ai.request.model"]), tostring(Properties["gen_ai.response.model"])),
+           thread    = tostring(Properties["gen_ai.thread.id"]),
+           flow      = tostring(Properties["agentctl.auth_flow"]),
+           usr       = coalesce(tostring(Properties["enduser.id"]), UserAuthenticatedId, UserId);
+let runAgent = spans
+  | where isnotempty(agentAttr) or isnotempty(agentId)
+  | summarize runAgentKey = take_any(coalesce(agentAttr, agentId)) by runKey;
 let gen = spans
-  | join kind=leftouter runAgent on OperationId
-  | extend agentName = coalesce(agent, runAgentName);`;
+  | join kind=leftouter runAgent on runKey
+  | extend agentName = coalesce(agentAttr, agentId, runAgentKey),
+           failedRun = op in (RunOps) and (Success == false or runStatus in ("failed", "cancelled", "expired"));`;
 }
 
 export function agentStatsQuery(range: TimeRange) {
   return `${genAiSpans(range)}
 gen
 | where isnotempty(agentName)
-| summarize runs = dcountif(OperationId, op in (RunOps)),
-            failedRuns = dcountif(OperationId, op in (RunOps) and Success == false),
+| summarize runs = dcountif(runKey, op in (RunOps)),
+            failedRuns = dcountif(runKey, failedRun),
             inputTokens = sum(inTok),
             outputTokens = sum(outTok),
-            toolCalls = countif(op == "execute_tool"),
+            toolCalls = countif(op in (ToolOps)),
             p95LatencyMs = percentile(iff(op in (RunOps), DurationMs, real(null)), 95),
             distinctUsers = dcountif(usr, isnotempty(usr)),
             lastActivity = max(TimeGenerated)
@@ -62,14 +82,15 @@ export function runsSeriesQuery(range: TimeRange) {
   return `${genAiSpans(range)}
 gen
 | where op in (RunOps)
-| summarize succeeded = countif(Success == true), failed = countif(Success == false) by t = bin(TimeGenerated, ${RANGE[range].bin})
+| summarize failed = max(toint(failedRun)), t0 = min(TimeGenerated) by runKey
+| summarize succeeded = countif(failed == 0), failed = countif(failed == 1) by t = bin(t0, ${RANGE[range].bin})
 | order by t asc`;
 }
 
 export function tokenSeriesQuery(range: TimeRange) {
   return `${genAiSpans(range)}
 gen
-| where isnotempty(agentName)
+| where isnotempty(agentName) and (isnotnull(inTok) or isnotnull(outTok))
 | summarize tokens = sum(inTok) + sum(outTok) by t = bin(TimeGenerated, ${RANGE[range].bin}), agentName
 | order by t asc`;
 }
@@ -77,38 +98,47 @@ gen
 export function topToolsQuery(range: TimeRange) {
   return `${genAiSpans(range)}
 gen
-| where op == "execute_tool" and isnotempty(tool)
+| where op in (ToolOps) and isnotempty(tool)
 | summarize calls = count() by tool
 | top 10 by calls`;
 }
 
-export function runsQuery(range: TimeRange, agentName?: string) {
+export function runsQuery(range: TimeRange, agentKeys?: string[]) {
+  const filter = agentKeys?.length ? `\n| where agentName in (${agentKeys.map((k) => `"${esc(k)}"`).join(", ")})` : "";
   return `${genAiSpans(range)}
 gen
 | summarize start = min(TimeGenerated),
             durationMs = maxif(DurationMs, op in (RunOps)),
-            failures = countif(Success == false and op in (RunOps)),
+            hasRun = countif(op in (RunOps)),
+            failures = countif(failedRun),
             user = take_anyif(usr, isnotempty(usr)),
             flow = take_anyif(flow, isnotempty(flow)),
             inputTokens = sum(inTok),
             outputTokens = sum(outTok),
-            toolCalls = countif(op == "execute_tool"),
+            toolCalls = countif(op in (ToolOps)),
             threadId = take_anyif(thread, isnotempty(thread)),
             agentName = take_anyif(agentName, isnotempty(agentName))
-  by OperationId
-| where isnotempty(agentName)${agentName ? `\n| where agentName == "${esc(agentName)}"` : ""}
+  by operationId = runKey
+| where hasRun > 0 and isnotempty(agentName)${filter}
 | extend success = failures == 0
+| project-away hasRun
 | top 300 by start desc`;
 }
 
-export function runSpansQuery(operationId: string) {
-  if (!/^[a-zA-Z0-9-]{8,64}$/.test(operationId)) throw new Error("invalid operation id");
-  return `AppDependencies
-| where TimeGenerated > ago(30d) and OperationId == "${operationId}"
+/** All gen_ai spans of one run: by run id, plus every span in the traces that touched it. */
+export function runSpansQuery(runKey: string) {
+  if (!/^[a-zA-Z0-9_-]{8,80}$/.test(runKey)) throw new Error("invalid run id");
+  return `let ops = AppDependencies
+  | where TimeGenerated > ago(30d)
+  | where tostring(Properties["gen_ai.thread.run.id"]) == "${runKey}" or OperationId == "${runKey}"
+  | distinct OperationId;
+AppDependencies
+| where TimeGenerated > ago(30d) and OperationId in (ops)
 | extend op = tostring(Properties["gen_ai.operation.name"])
+| where isnotempty(op)
 | project spanId = Id, parentId = ParentId, name = Name, op, start = TimeGenerated, durationMs = DurationMs, success = Success,
           toolName = tostring(Properties["gen_ai.tool.name"]),
-          model = tostring(Properties["gen_ai.request.model"]),
+          model = coalesce(tostring(Properties["gen_ai.request.model"]), tostring(Properties["gen_ai.response.model"])),
           inputTokens = toint(Properties["gen_ai.usage.input_tokens"]),
           outputTokens = toint(Properties["gen_ai.usage.output_tokens"])
 | order by start asc`;

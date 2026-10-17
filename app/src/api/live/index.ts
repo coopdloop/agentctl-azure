@@ -68,17 +68,55 @@ export class LiveDataSource implements DataSource {
     return { spIds, appIds: [...new Set(appIds)] };
   }, 300_000);
 
+  /** Traces carry the agent id (asst_...) and sometimes the name; normalise both to the name. */
+  private async agentNamer(): Promise<(key: string) => string> {
+    const agents = await settle(this.listAgents(), [] as Agent[]);
+    const byKey = new Map<string, string>();
+    for (const a of agents) {
+      byKey.set(a.id, a.name);
+      byKey.set(a.name, a.name);
+    }
+    return (key) => byKey.get(key) ?? key;
+  }
+
   async agentStats(range: TimeRange): Promise<AgentStats[]> {
-    const rows = await kql<AgentStats>(Q.agentStatsQuery(range), Q.RANGE[range].timespan);
-    return rows.map((r) => ({ ...r, p95LatencyMs: Math.round(Number(r.p95LatencyMs) || 0) }));
+    const [rows, name] = await Promise.all([kql<AgentStats>(Q.agentStatsQuery(range), Q.RANGE[range].timespan), this.agentNamer()]);
+    // ids and names of the same agent may arrive as separate rows; merge them.
+    const merged = new Map<string, AgentStats>();
+    for (const r of rows) {
+      const key = name(r.agentName);
+      const prev = merged.get(key);
+      const cur = { ...r, agentName: key, p95LatencyMs: Math.round(Number(r.p95LatencyMs) || 0) };
+      merged.set(
+        key,
+        prev
+          ? {
+              ...prev,
+              runs: prev.runs + cur.runs,
+              failedRuns: prev.failedRuns + cur.failedRuns,
+              inputTokens: prev.inputTokens + cur.inputTokens,
+              outputTokens: prev.outputTokens + cur.outputTokens,
+              toolCalls: prev.toolCalls + cur.toolCalls,
+              p95LatencyMs: Math.max(prev.p95LatencyMs, cur.p95LatencyMs),
+              distinctUsers: Math.max(prev.distinctUsers, cur.distinctUsers),
+              lastActivity: [prev.lastActivity ?? "", cur.lastActivity ?? ""].sort().pop(),
+            }
+          : cur,
+      );
+    }
+    return [...merged.values()];
   }
 
   async tokenSeries(range: TimeRange): Promise<TimePoint[]> {
-    const rows = await kql<{ t: string; agentName: string; tokens: number }>(Q.tokenSeriesQuery(range), Q.RANGE[range].timespan);
+    const [rows, name] = await Promise.all([
+      kql<{ t: string; agentName: string; tokens: number }>(Q.tokenSeriesQuery(range), Q.RANGE[range].timespan),
+      this.agentNamer(),
+    ]);
     const byT = new Map<string, TimePoint>();
     for (const r of rows) {
       const p = byT.get(r.t) ?? { t: r.t };
-      p[r.agentName] = r.tokens;
+      const n = name(r.agentName);
+      p[n] = ((p[n] as number) ?? 0) + r.tokens;
       byT.set(r.t, p);
     }
     return [...byT.values()];
@@ -117,9 +155,13 @@ export class LiveDataSource implements DataSource {
   }
 
   async listRuns(range: TimeRange, agentName?: string): Promise<AgentRun[]> {
-    const rows = await kql<AgentRun & { flow?: string }>(Q.runsQuery(range, agentName), Q.RANGE[range].timespan);
+    const name = await this.agentNamer();
+    // Filter on both the name and the id, since traces may carry either.
+    const keys = agentName ? [agentName, ...(await settle(this.listAgents(), [] as Agent[])).filter((a) => a.name === agentName).map((a) => a.id)] : undefined;
+    const rows = await kql<AgentRun & { flow?: string }>(Q.runsQuery(range, keys), Q.RANGE[range].timespan);
     return rows.map((r) => ({
       ...r,
+      agentName: name(r.agentName),
       success: Boolean(r.success),
       authFlow: (r.flow || (r.user ? "delegated" : "app")) as AuthFlowObserved,
     }));
@@ -130,11 +172,11 @@ export class LiveDataSource implements DataSource {
     return rows.map((r) => ({
       ...r,
       success: Boolean(r.success),
-      kind: (["invoke_agent", "process_thread_run", "start_thread_run", "create_run"].includes(r.op)
+      kind: (Q.RUN_OP_NAMES.includes(r.op)
         ? "invoke_agent"
         : r.op === "chat"
           ? "chat"
-          : r.op === "execute_tool"
+          : r.op === "execute_tool" || r.op === "submit_tool_outputs"
             ? "execute_tool"
             : "other") as Span["kind"],
     }));

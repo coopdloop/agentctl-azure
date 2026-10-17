@@ -176,6 +176,7 @@ variable "entra_diagnostics" {
 variable "app_service" {
   description = "App Service plan/app settings for the agentctl frontend."
   type = object({
+    enabled      = optional(bool, true)
     sku_name     = optional(string, "B1")
     node_version = optional(string, "22-lts")
     always_on    = optional(bool, true)

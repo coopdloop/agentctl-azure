@@ -68,3 +68,7 @@ variable "bundle_storage" {
   type    = any
   default = {}
 }
+variable "app_service" {
+  type    = any
+  default = {}
+}

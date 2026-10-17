@@ -29,10 +29,11 @@ resource "azurerm_role_assignment" "viewer_law" {
   principal_id         = each.value
 }
 
-# Read agent definitions on the Foundry data plane.
+# Read agent definitions on the Foundry data plane. "Azure AI User" was renamed "Foundry User";
+# reference the built-in role by its immutable id so renames don't break the module.
 resource "azurerm_role_assignment" "viewer_ai_user" {
-  for_each             = local.viewer_ai_user
-  scope                = each.value.scope
-  role_definition_name = "Azure AI User"
-  principal_id         = each.value.principal
+  for_each           = local.viewer_ai_user
+  scope              = each.value.scope
+  role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d"
+  principal_id       = each.value.principal
 }

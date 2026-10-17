@@ -44,6 +44,7 @@ module "agentctl" {
   gitops               = var.gitops
   approver_groups      = var.approver_groups
   bundle_storage       = var.bundle_storage
+  app_service          = var.app_service
 }
 
 output "app_url" { value = module.agentctl.app_url }

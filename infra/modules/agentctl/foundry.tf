@@ -66,6 +66,9 @@ resource "azapi_resource" "model_deployment" {
       raiPolicyName = each.value.rai_policy
     }
   }
+
+  # The account accepts one write at a time; create the project first.
+  depends_on = [azapi_resource.foundry_project]
 }
 
 # Sends agent traces (OpenTelemetry gen_ai spans) from the project to Application Insights.
@@ -77,10 +80,9 @@ resource "azapi_resource" "project_appinsights_connection" {
 
   body = {
     properties = {
-      category      = "AppInsights"
-      target        = local.appi_id
-      authType      = "ApiKey"
-      isSharedToAll = true
+      category = "AppInsights"
+      target   = local.appi_id
+      authType = "ApiKey"
       # connection_string is a sensitive value, so plans mask the whole body.
       credentials = { key = local.appi_connection_string }
       metadata    = { ApiType = "Azure", ResourceId = local.appi_id }

@@ -14,3 +14,6 @@ crash.log
 # build artefacts
 /artifacts/
 .DS_Store
+tfplan
+*.tfplan
+.venv/

@@ -2,6 +2,7 @@
 # which serves /config.js from these app settings and the allowlisted /proxy route.
 
 resource "azurerm_service_plan" "this" {
+  count               = var.app_service.enabled ? 1 : 0
   name                = local.names.plan
   location            = var.location
   resource_group_name = local.rg_name
@@ -34,10 +35,11 @@ locals {
 }
 
 resource "azurerm_linux_web_app" "this" {
+  count               = var.app_service.enabled ? 1 : 0
   name                = local.names.app
   location            = var.location
   resource_group_name = local.rg_name
-  service_plan_id     = azurerm_service_plan.this.id
+  service_plan_id     = azurerm_service_plan.this[0].id
   https_only          = true
   tags                = local.tags
 
@@ -47,7 +49,7 @@ resource "azurerm_linux_web_app" "this" {
   }
 
   site_config {
-    always_on                         = var.app_service.always_on
+    always_on                         = var.app_service.always_on && !contains(["F1", "FREE", "D1"], upper(var.app_service.sku_name))
     ftps_state                        = "Disabled"
     minimum_tls_version               = "1.2"
     http2_enabled                     = true
@@ -76,8 +78,9 @@ resource "azurerm_linux_web_app" "this" {
 }
 
 resource "azurerm_monitor_diagnostic_setting" "app" {
+  count                      = var.app_service.enabled ? 1 : 0
   name                       = "agentctl-to-law"
-  target_resource_id         = azurerm_linux_web_app.this.id
+  target_resource_id         = azurerm_linux_web_app.this[0].id
   log_analytics_workspace_id = local.law_id
 
   enabled_log {
