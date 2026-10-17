@@ -1,0 +1,25 @@
+# Weekly updates with a 7-day cooldown: new releases must age a week before we adopt them,
+# which avoids most malicious-release / account-takeover windows (docs/SSDLC.md §5).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /app
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+    groups:
+      dev-tooling:
+        patterns: ["vite", "vitest", "@vitejs/*", "esbuild", "typescript", "@types/*", "jsdom", "@testing-library/*"]
+      ui:
+        patterns: ["react", "react-dom", "react-router-dom", "@fluentui/*", "recharts", "@tanstack/*"]
+  - package-ecosystem: github-actions
+    directories: ["/", "/templates/agents-gitops"]
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+  - package-ecosystem: terraform
+    directories: ["/infra", "/infra/modules/agentctl", "/infra/modules/foundry-agent", "/templates/agents-gitops/platform/terraform"]
+    schedule: { interval: weekly }
+    cooldown: { default-days: 7 }
+  - package-ecosystem: pip
+    directory: /scripts/seed
+    schedule: { interval: monthly }
+    cooldown: { default-days: 7 }

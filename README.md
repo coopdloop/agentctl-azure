@@ -5,6 +5,7 @@ A frontend-only control plane for Azure AI Foundry agents. It shows agent activi
 - **Spec:** [`docs/SPEC.md`](docs/SPEC.md)
 - **Access model:** [`docs/ACCESS.md`](docs/ACCESS.md): app roles, data scopes, telemetry access, onboarding, troubleshooting
 - **Any Azure environment:** [`docs/ENVIRONMENTS.md`](docs/ENVIRONMENTS.md): sovereign clouds, multiple subscriptions and workspaces, private networking
+- **Security:** [`docs/SSDLC.md`](docs/SSDLC.md) (CI gates, supply chain, releases), [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`SECURITY.md`](SECURITY.md)
 - **Tenant validation log:** [`docs/VALIDATION.md`](docs/VALIDATION.md): what was deployed and tested, findings, open items
 - **App:** [`app/`](app): React + Vite + Fluent UI v9, MSAL, mock/live data sources
 - **Infra:** [`infra/`](infra): minimal `main.tf` + `terraform.tfvars.example`, calling [`modules/agentctl`](infra/modules/agentctl); bundles call [`modules/foundry-agent`](infra/modules/foundry-agent)
@@ -82,7 +83,8 @@ infra/
 app/cli/agentctl-verify.ts  bundle verifier CLI for the pipeline (npm run build:cli → artifacts/)
 templates/agents-gitops/   GitOps repo template (workflows, approval mapping, platform Terraform)
 scripts/                   deploy-app.sh, local-env-from-tf.sh, init-gitops-repo.sh, seed/ (demo agents + traffic)
-docs/                      SPEC.md, ACCESS.md, ENVIRONMENTS.md, VALIDATION.md
+docs/                      SPEC.md, ACCESS.md, ENVIRONMENTS.md, VALIDATION.md, SSDLC.md, THREAT_MODEL.md
+.github/                   CI (ci, codeql, scorecard), release + deploy workflows, Dependabot, CODEOWNERS
 ```
 
 ## Moving into your infra repo

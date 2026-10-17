@@ -1,0 +1,12 @@
+# gitleaks: default rules plus allowlist for known non-secrets.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Generated code, lockfiles and third-party docs"
+paths = [
+  '''app/src/schema/validators\.generated\.js''',
+  '''app/package-lock\.json''',
+  '''(^|/)\.venv/''',
+  '''research_notes/''',
+]

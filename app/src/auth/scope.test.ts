@@ -75,3 +75,14 @@ describe("proposals", () => {
     expect((await verifyBundle(b.files)).ok).toBe(true);
   });
 });
+
+describe("agent globs", () => {
+  const scoped = (agents: string[]) => resolveScope({ unscopedDefault: "none", scopes: [{ name: "t", groups: ["g"], projects: ["a/p"], agents }] }, ["g"], false);
+  it("escapes regex metacharacters", () => {
+    expect(agentAllowed(scoped(["hr.(x)*"]), { account: "a", project: "p", name: "hr.(x)-bot" })).toBe(true);
+    expect(agentAllowed(scoped(["hr.(x)*"]), { account: "a", project: "p", name: "hrX(x)-bot" })).toBe(false);
+  });
+  it("fails closed on pathological globs", () => {
+    expect(agentAllowed(scoped(["*a*a*a*a*a*"]), { account: "a", project: "p", name: "aaaaa" })).toBe(false);
+  });
+});

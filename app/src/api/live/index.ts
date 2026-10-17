@@ -149,7 +149,7 @@ export class LiveDataSource implements DataSource {
   }
 
   async overview(range: TimeRange): Promise<Overview> {
-    const warn = (what: string) => (e: unknown) => console.warn(`overview: ${what}`, e);
+    const warn = (what: string) => (e: unknown) => console.warn("overview:", what, e);
     const [agents, projects, stats, series, usage, tools, policy, deps] = await Promise.all([
       settle(this.listAgents(), [], warn("agents")),
       settle(this.listProjects(), [], warn("projects")),

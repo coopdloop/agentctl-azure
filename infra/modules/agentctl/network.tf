@@ -34,6 +34,7 @@ locals {
     local.net.enabled && local.net.app_private_endpoint && var.app_service.enabled ? ["web"] : [],
     local.net.enabled && local.net.foundry_private_endpoint && var.foundry.create ? ["cs", "openai", "foundry"] : [],
     local.ampls_enabled ? ["monitor", "oms", "ods", "agentsvc", "blob"] : [],
+    local.net.enabled && var.bundle_storage.enabled ? ["blob"] : [],
   ))
   zones_to_create = local.net.create_private_dns_zones ? toset([for k in local.needed_zone_keys : k if !contains(keys(local.net.private_dns_zone_ids), local.zones[k])]) : toset([])
   zone_id = merge(
@@ -161,4 +162,28 @@ resource "azurerm_private_endpoint" "monitor" {
   }
 
   depends_on = [terraform_data.dns_zones_check, azurerm_monitor_private_link_scoped_service.this]
+}
+
+# Bundle archive (optional) behind a private endpoint when networking is on.
+resource "azurerm_private_endpoint" "bundles" {
+  count               = local.net.enabled && var.bundle_storage.enabled ? 1 : 0
+  name                = "pe-${local.names.st}-blob"
+  location            = var.location
+  resource_group_name = local.rg_name
+  subnet_id           = local.net.private_endpoint_subnet_id
+  tags                = local.tags
+
+  private_service_connection {
+    name                           = "blob"
+    private_connection_resource_id = azurerm_storage_account.bundles[0].id
+    subresource_names              = ["blob"]
+    is_manual_connection           = false
+  }
+
+  private_dns_zone_group {
+    name                 = "default"
+    private_dns_zone_ids = [local.zone_id["blob"]]
+  }
+
+  depends_on = [terraform_data.dns_zones_check]
 }

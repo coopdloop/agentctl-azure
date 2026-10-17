@@ -1,0 +1,7 @@
+# Checkov config. Skips are justified here (reviewed by platform-security via CODEOWNERS).
+compact: true
+quiet: true
+skip-path:
+  - app/node_modules
+  - research_notes
+skip-check: []

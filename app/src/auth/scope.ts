@@ -31,7 +31,20 @@ export type ResolvedScope =
   | { all: true; names: string[] }
   | { all: false; names: string[]; projects: Set<string>; agentPatterns: RegExp[] | null };
 
-const glob = (g: string) => new RegExp(`^${g.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*").replace(/\?/g, ".")}$`, "i");
+/**
+ * Agent-name glob -> anchored regex. Every regex metacharacter is escaped; only * and ? become
+ * wildcards. Globs come from admin config and are length-capped and limited to 4 wildcards to
+ * keep matching cheap (agent names are <= 63 chars).
+ */
+const glob = (g: string) => {
+  const safe = g.slice(0, 64);
+  if ((safe.match(/[*?]/g) ?? []).length > 4) {
+    console.warn(`agentctl: agent glob "${safe}" has too many wildcards; it matches nothing`);
+    return /(?!)/; // fail closed
+  }
+  const pattern = safe.replace(/[.+^${}()|[\]\\]/g, "\\$&").replace(/\*/g, "[^]*").replace(/\?/g, "[^]");
+  return new RegExp(`^${pattern}$`, "i"); // nosemgrep: detect-non-literal-regexp -- escaped, capped glob (see above)
+};
 
 export function resolveScope(cfg: AccessConfig, groupIds: string[], isAdmin: boolean): ResolvedScope {
   if (isAdmin) return { all: true, names: ["admin"] };

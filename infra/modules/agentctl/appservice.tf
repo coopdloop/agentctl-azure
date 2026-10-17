@@ -2,6 +2,8 @@
 # which serves /config.js from these app settings and the allowlisted /proxy route.
 
 resource "azurerm_service_plan" "this" {
+  #checkov:skip=CKV_AZURE_225:Zone redundancy needs Premium v3+; choose it via app_service.sku_name for production
+  #checkov:skip=CKV_AZURE_212:Instance count is an availability choice per environment, not a security control
   count               = var.app_service.enabled ? 1 : 0
   name                = local.names.plan
   location            = var.location
@@ -40,6 +42,10 @@ locals {
 }
 
 resource "azurerm_linux_web_app" "this" {
+  #checkov:skip=CKV_AZURE_13:The SPA authenticates users with MSAL (auth code + PKCE); Easy Auth would conflict with token-per-audience flows. Data access is enforced by Azure RBAC on every API
+  #checkov:skip=CKV_AZURE_17:No client-certificate auth: users sign in with Entra ID
+  #checkov:skip=CKV_AZURE_88:No persistent storage; the app is stateless
+  #checkov:skip=CKV_AZURE_222:Public access is disabled when network.app_private_endpoint = true (conditional; checkov evaluates defaults)
   count               = var.app_service.enabled ? 1 : 0
   name                = local.names.app
   location            = var.location
@@ -78,6 +84,8 @@ resource "azurerm_linux_web_app" "this" {
   })
 
   logs {
+    detailed_error_messages = true # server-side logs only; users never see them
+    failed_request_tracing  = true
     http_logs {
       file_system {
         retention_in_days = 3

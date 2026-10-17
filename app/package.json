@@ -32,22 +32,23 @@
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
-    "@vitejs/plugin-react": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.2",
     "ajv": "^8.17.1",
     "ajv-formats": "^3.0.1",
     "diff": "^5.2.0",
-    "jsdom": "^25.0.1",
+    "esbuild": "^0.28.2",
+    "jsdom": "^27.0.0",
     "jszip": "^3.10.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.28.0",
+    "react-router-dom": "^7.18.4",
     "recharts": "^2.13.3",
     "typescript": "~5.6.3",
-    "vite": "^5.4.11",
-    "vitest": "^2.1.5",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5",
     "yaml": "^2.6.0"
   },
   "allowScripts": {
-    "esbuild@0.21.5": true
+    "esbuild@0.28.2": true
   }
 }

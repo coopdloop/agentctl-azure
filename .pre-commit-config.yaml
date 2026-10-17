@@ -1,0 +1,18 @@
+# Optional local hooks: `pipx install pre-commit && pre-commit install`. CI runs the same checks.
+repos:
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.2
+    hooks:
+      - id: gitleaks
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.96.2
+    hooks:
+      - id: terraform_fmt
+  - repo: local
+    hooks:
+      - id: pin-actions
+        name: GitHub Actions pinned to SHAs
+        entry: node scripts/pin-actions.mjs --check
+        language: system
+        files: ^(\.github|templates/.*/\.github)/
+        pass_filenames: false

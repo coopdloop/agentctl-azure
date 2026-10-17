@@ -51,7 +51,7 @@ modules/foundry-agent/         Terraform module the bundles call
    `AZURE_DEPLOY_CLIENT_ID` per environment; set `AZURE_TENANT_ID` and `AZURE_READ_CLIENT_ID` as
    repo variables.
 5. **Gate app**: create a GitHub App with *Organization → Members: read* and *Pull requests: read*,
-   install it on the repo, and set `GATE_APP_ID` (variable) and `GATE_APP_PRIVATE_KEY` (secret).
+   install it on the repo, and set `GATE_APP_CLIENT_ID` (variable, the app's client ID) and `GATE_APP_PRIVATE_KEY` (secret).
 6. **Branch protection on `main`**: require PRs, require the `agent-bundle / gate` check,
    require code-owner review, dismiss stale approvals, block force pushes, and include
    administrators.

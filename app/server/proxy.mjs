@@ -61,9 +61,11 @@ export function createProxyMiddleware({ allowedHostSuffixes } = {}) {
     }
 
     try {
-      const headers = {};
+      // Only a fixed allowlist of request headers is forwarded (no cookies, no client IPs).
+      const headers = new Headers();
       for (const h of FORWARD_REQUEST_HEADERS) {
-        if (req.headers[h]) headers[h] = req.headers[h];
+        const v = req.headers[h];
+        if (typeof v === "string") headers.set(h, v);
       }
       const method = req.method ?? "GET";
       const body = ["GET", "HEAD"].includes(method) ? undefined : await readBody(req);

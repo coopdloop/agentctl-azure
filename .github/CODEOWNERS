@@ -1,0 +1,14 @@
+# Replace YOUR-ORG teams. Branch protection requires code-owner review (docs/SSDLC.md §3).
+*                         @YOUR-ORG/agentctl-maintainers
+
+# Security-sensitive: auth, data scoping, proxy, CSP, bundle integrity, CI/CD, IaC identities.
+/app/server/              @YOUR-ORG/agentctl-maintainers @YOUR-ORG/platform-security
+/app/src/auth/            @YOUR-ORG/agentctl-maintainers @YOUR-ORG/platform-security
+/app/src/api/scoped.ts    @YOUR-ORG/agentctl-maintainers @YOUR-ORG/platform-security
+/app/src/bundle/          @YOUR-ORG/agentctl-maintainers @YOUR-ORG/platform-security
+/app/src/schema/          @YOUR-ORG/agentctl-maintainers @YOUR-ORG/platform-security
+/app/cli/                 @YOUR-ORG/agentctl-maintainers @YOUR-ORG/platform-security
+/infra/                   @YOUR-ORG/agentctl-maintainers @YOUR-ORG/platform-security
+/templates/               @YOUR-ORG/agentctl-maintainers @YOUR-ORG/platform-security
+/.github/                 @YOUR-ORG/platform-security
+/scripts/                 @YOUR-ORG/agentctl-maintainers
