@@ -57,7 +57,8 @@ export function BundlePanel({
   defaultRationale?: string;
 }) {
   const s = useStyles();
-  const { user } = useSession();
+  const { user, can } = useSession();
+  const proposal = !can("Builder") && can("Requester");
   const [title, setTitle] = useState(defaultTitle);
   const [rationale, setRationale] = useState(defaultRationale);
   const [bundle, setBundle] = useState<BundleResult | null>(null);
@@ -71,7 +72,7 @@ export function BundlePanel({
   useEffect(() => {
     let cancelled = false;
     const t = setTimeout(() => {
-      buildBundle({ before, after, title: title || "Untitled change", rationale: rationale || "(missing rationale)", requestedBy: user.upn || user.name, foundryAgentId })
+      buildBundle({ before, after, title: title || "Untitled change", rationale: rationale || "(missing rationale)", requestedBy: user.upn || user.name, foundryAgentId, proposal })
         .then((b) => !cancelled && setBundle(b))
         .catch((e) => console.error(e));
     }, 250);
@@ -79,7 +80,7 @@ export function BundlePanel({
       cancelled = true;
       clearTimeout(t);
     };
-  }, [before, after, title, rationale, user, foundryAgentId]);
+  }, [before, after, title, rationale, user, foundryAgentId, proposal]);
 
   const noChanges = !!before && bundle?.changeRequest.spec.changes.every((c) => c.summary === "No effective changes");
   const crIssues = (bundle?.crIssues ?? []).filter((i) => !(i.path === "/spec/rationale" && rationale.length >= 10));
@@ -102,7 +103,15 @@ export function BundlePanel({
 
   return (
     <div className={s.stack}>
-      <Section title="Change request">
+      {proposal && (
+        <MessageBar intent="info">
+          <MessageBarBody>
+            <MessageBarTitle>Submitting as a proposal</MessageBarTitle>
+            You have the Requester role: the bundle is marked as a proposal, and the agent's owners must adopt it before normal approvals apply.
+          </MessageBarBody>
+        </MessageBar>
+      )}
+      <Section title={proposal ? "Proposal" : "Change request"}>
         <Grid2>
           <Field label="Title" required>
             <Input value={title} onChange={(_, d) => setTitle(d.value)} />

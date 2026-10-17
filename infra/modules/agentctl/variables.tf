@@ -106,14 +106,61 @@ variable "foundry" {
 # --- Identity / access ------------------------------------------------------------------------
 
 variable "app_role_assignments" {
-  description = "Entra object ids (groups or users) to assign to each agentctl app role."
+  description = <<-EOT
+    Existing Entra object ids (groups or users) to assign to each agentctl app role.
+    Roles: reader, identity_reader, requester, builder, approver, admin.
+  EOT
+  type        = map(list(string))
+  default     = {}
+  validation {
+    condition     = alltrue([for k in keys(var.app_role_assignments) : contains(["reader", "identity_reader", "requester", "builder", "approver", "admin"], k)])
+    error_message = "app_role_assignments keys must be reader, identity_reader, requester, builder, approver or admin."
+  }
+}
+
+variable "role_groups" {
+  description = <<-EOT
+    Create one Entra security group per app role (e.g. agentctl-dev-builders) and assign it to the
+    role. members maps role -> member object ids. Leave create = false to bring your own groups via
+    app_role_assignments.
+  EOT
   type = object({
-    reader   = optional(list(string), [])
-    builder  = optional(list(string), [])
-    approver = optional(list(string), [])
-    admin    = optional(list(string), [])
+    create      = optional(bool, false)
+    name_prefix = optional(string, "agentctl")
+    members     = optional(map(list(string)), {})
   })
   default = {}
+}
+
+variable "access_scopes" {
+  description = <<-EOT
+    Data scopes. Members of a scope's groups see only that scope's Foundry projects (and optionally
+    agents matching name globs). Project access is *enforced* by granting the groups Foundry User on
+    exactly those projects; agent globs refine the UI within a project.
+      { hr = { group_ids = ["<oid>"], projects = [{ account_id = "/subscriptions/.../accounts/aif-x", project = "agents" }], agents = ["hr-*"] } }
+    Don't also put scoped users in viewer_principal_ids (that grants account-wide Foundry access).
+  EOT
+  type = map(object({
+    group_ids    = optional(list(string), [])
+    create_group = optional(bool, false) # creates agentctl-<env>-scope-<name> with `members`
+    members      = optional(list(string), [])
+    projects = list(object({
+      account_id = string
+      project    = string
+    }))
+    agents = optional(list(string))
+  }))
+  default = {}
+}
+
+variable "unscoped_default" {
+  description = "What users in no access_scopes group see: all (simple single-team setups) or none (strict)."
+  type        = string
+  default     = "all"
+  validation {
+    condition     = contains(["all", "none"], var.unscoped_default)
+    error_message = "unscoped_default must be all or none."
+  }
 }
 
 variable "require_app_role_assignment" {

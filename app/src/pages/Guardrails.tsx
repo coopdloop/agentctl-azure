@@ -61,7 +61,7 @@ export function GuardrailsPage() {
 function FindingsTab() {
   const nav = useNavigate();
   const ds = useDataSource();
-  const { can, user } = useSession();
+  const { can, canPropose, user } = useSession();
   const { findings, loading, errors } = useFindings();
   const agents = useDs("listAgents");
   const [cat, setCat] = useState("all");
@@ -165,7 +165,7 @@ function FindingsTab() {
                 render: (f) => {
                   const link = fixLink(f);
                   return link ? (
-                    <Button size="small" icon={<Wrench16Regular />} disabled={!can("Builder")} onClick={() => nav(link)}>
+                    <Button size="small" icon={<Wrench16Regular />} disabled={!canPropose} onClick={() => nav(link)}>
                       Fix
                     </Button>
                   ) : null;

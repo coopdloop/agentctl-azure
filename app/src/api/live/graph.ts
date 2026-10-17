@@ -181,3 +181,9 @@ export async function graphPing(): Promise<string> {
   const me = await apiFetch<{ userPrincipalName: string }>("graph", `${G}/me?$select=userPrincipalName`);
   return me.userPrincipalName;
 }
+
+/** Group memberships for the signed-in user (used when the token's groups claim overflows). */
+export async function getMyGroupIds(): Promise<string[]> {
+  const r = await apiFetch<{ value: string[] }>("graph", `${G}/me/getMemberGroups`, { body: { securityEnabledOnly: false } });
+  return r.value;
+}

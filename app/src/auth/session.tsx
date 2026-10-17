@@ -1,17 +1,24 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { liveCapable, config } from "../config";
+import { config, liveCapable } from "../config";
 import { activeAccount, login, logout } from "./msal";
+import { resolveScope, type AccessConfig, type ResolvedScope } from "./scope";
+import { MOCK_ACCESS } from "../api/mock/access";
 
-export type AppRole = "Reader" | "Builder" | "Approver" | "Admin";
-export const ALL_ROLES: AppRole[] = ["Reader", "Builder", "Approver", "Admin"];
+export { MOCK_ACCESS };
 
-/** Entra app role values (see infra/modules/agentctl/entra.tf). */
-const ROLE_CLAIMS: Record<string, AppRole> = {
-  "AgentCtl.Reader": "Reader",
-  "AgentCtl.Builder": "Builder",
-  "AgentCtl.Approver": "Approver",
-  "AgentCtl.Admin": "Admin",
-};
+/**
+ * App roles (Entra app role values AgentCtl.<Role>, see infra/modules/agentctl/entra.tf):
+ *  Reader          observe agents, activity, guardrails
+ *  IdentityReader  Identity & access views (sign-ins, grants, RBAC, agent identities)
+ *  Requester       propose new agents / changes (bundles are marked as proposals)
+ *  Builder         create agents and change requests
+ *  Approver        verify bundles
+ *  Admin           everything, unscoped, bulk remediation
+ */
+export type AppRole = "Reader" | "IdentityReader" | "Requester" | "Builder" | "Approver" | "Admin";
+export const ALL_ROLES: AppRole[] = ["Reader", "IdentityReader", "Requester", "Builder", "Approver", "Admin"];
+
+const ROLE_CLAIMS: Record<string, AppRole> = Object.fromEntries(ALL_ROLES.map((r) => [`AgentCtl.${r}`, r]));
 
 interface Session {
   mode: "mock" | "live";
@@ -20,9 +27,15 @@ interface Session {
   signedIn: boolean;
   user: { name: string; upn: string };
   roles: AppRole[];
-  /** Mock mode only: simulate different app roles. */
+  groups: string[];
+  scope: ResolvedScope;
+  access: AccessConfig;
+  /** Mock mode only: simulate app roles and scope groups. */
   setMockRoles(r: AppRole[]): void;
+  setMockGroups(g: string[]): void;
   can(role: AppRole): boolean;
+  /** Can create bundles: Builders directly, Requesters as proposals. */
+  canPropose: boolean;
   signIn(): void;
   signOut(): void;
 }
@@ -30,6 +43,7 @@ interface Session {
 const Ctx = createContext<Session | null>(null);
 const MODE_KEY = "agentctl.mode";
 const ROLES_KEY = "agentctl.mockRoles";
+const GROUPS_KEY = "agentctl.mockGroups";
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -47,11 +61,11 @@ function write(key: string, v: unknown) {
   }
 }
 
-export function SessionProvider({ children }: { children: ReactNode }) {
-  const [mode, setModeState] = useState<"mock" | "live">(() =>
-    liveCapable ? read(MODE_KEY, config.mode) : "mock",
-  );
+export function SessionProvider({ children, loadGroups }: { children: ReactNode; loadGroups?: () => Promise<string[]> }) {
+  const [mode, setModeState] = useState<"mock" | "live">(() => (liveCapable ? read(MODE_KEY, config.mode) : "mock"));
   const [mockRoles, setMockRolesState] = useState<AppRole[]>(() => read(ROLES_KEY, ALL_ROLES));
+  const [mockGroups, setMockGroupsState] = useState<string[]>(() => read(GROUPS_KEY, []));
+  const [overageGroups, setOverageGroups] = useState<string[] | null>(null);
   const [, force] = useState(0);
 
   useEffect(() => {
@@ -61,11 +75,24 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const account = mode === "live" ? activeAccount() : null;
-  const claimRoles = ((account?.idTokenClaims?.roles as string[] | undefined) ?? [])
-    .map((r) => ROLE_CLAIMS[r])
-    .filter(Boolean);
+  const claims = (account?.idTokenClaims ?? {}) as { roles?: string[]; groups?: string[]; _claim_names?: { groups?: string } };
+  const claimRoles = (claims.roles ?? []).map((r) => ROLE_CLAIMS[r]).filter(Boolean);
+  const groupOverage = Boolean(claims._claim_names?.groups);
 
-  const roles: AppRole[] = mode === "mock" ? mockRoles : claimRoles.length ? claimRoles : ["Reader"];
+  // >200 groups: Entra omits the claim; fetch memberships from Graph instead.
+  useEffect(() => {
+    if (mode !== "live" || !account || !groupOverage || overageGroups || !loadGroups) return;
+    loadGroups()
+      .then(setOverageGroups)
+      .catch((e) => console.warn("group lookup failed", e));
+  }, [mode, account, groupOverage, overageGroups, loadGroups]);
+
+  // Least privilege: no app role assigned = no access (app_role_assignment_required should stop
+  // such users at sign-in anyway).
+  const roles: AppRole[] = mode === "mock" ? mockRoles : claimRoles;
+  const groups = mode === "mock" ? mockGroups : (claims.groups ?? overageGroups ?? []);
+  const access = mode === "mock" ? MOCK_ACCESS : config.access;
+  const scope = useMemo(() => resolveScope(access, groups, roles.includes("Admin")), [access, groups, roles]);
 
   const setMode = useCallback((m: "mock" | "live") => {
     setModeState(m);
@@ -75,9 +102,14 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     setMockRolesState(r);
     write(ROLES_KEY, r);
   }, []);
+  const setMockGroups = useCallback((g: string[]) => {
+    setMockGroupsState(g);
+    write(GROUPS_KEY, g);
+  }, []);
 
-  const value = useMemo<Session>(
-    () => ({
+  const value = useMemo<Session>(() => {
+    const can = (r: AppRole) => roles.includes("Admin") || roles.includes(r);
+    return {
       mode,
       setMode,
       liveCapable,
@@ -87,13 +119,17 @@ export function SessionProvider({ children }: { children: ReactNode }) {
           ? { name: "Dev User (mock)", upn: "dev.user@contoso.example" }
           : { name: account?.name ?? "Not signed in", upn: account?.username ?? "" },
       roles,
+      groups,
+      scope,
+      access,
       setMockRoles,
-      can: (r) => roles.includes("Admin") || roles.includes(r),
+      setMockGroups,
+      can,
+      canPropose: can("Builder") || can("Requester"),
       signIn: () => void login(),
       signOut: () => void logout(),
-    }),
-    [mode, setMode, account, roles, setMockRoles],
-  );
+    };
+  }, [mode, setMode, account, roles, groups, scope, access, setMockRoles, setMockGroups]);
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

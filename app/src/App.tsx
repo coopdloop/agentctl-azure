@@ -29,9 +29,23 @@ function RoleGate({ role, children }: { role: AppRole; children: ReactNode }) {
   );
 }
 
+function ProposeGate({ children }: { children: ReactNode }) {
+  const { canPropose } = useSession();
+  return canPropose ? <>{children}</> : <RoleGate role="Builder">{children}</RoleGate>;
+}
+
 function SignInGate({ children }: { children: ReactNode }) {
-  const { signedIn, signIn } = useSession();
-  if (signedIn) return <>{children}</>;
+  const { signedIn, signIn, roles, mode } = useSession();
+  if (signedIn && (roles.length || mode === "mock")) return <>{children}</>;
+  if (signedIn)
+    return (
+      <MessageBar intent="warning">
+        <MessageBarBody>
+          <MessageBarTitle>No agentctl role assigned</MessageBarTitle>
+          Your account signed in but has no AgentCtl app role. Ask an administrator to add you to one of the agentctl groups.
+        </MessageBarBody>
+      </MessageBar>
+    );
   return (
     <MessageBar intent="info">
       <MessageBarBody>
@@ -54,10 +68,10 @@ export function App() {
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/agents/:project/:id" element={<AgentDetailPage />} />
           <Route path="/activity" element={<ActivityPage />} />
-          <Route path="/identity" element={<IdentityPage />} />
+          <Route path="/identity" element={<RoleGate role="IdentityReader"><IdentityPage /></RoleGate>} />
           <Route path="/guardrails" element={<GuardrailsPage />} />
-          <Route path="/builder" element={<RoleGate role="Builder"><BuilderPage /></RoleGate>} />
-          <Route path="/harness" element={<RoleGate role="Builder"><HarnessPage /></RoleGate>} />
+          <Route path="/builder" element={<ProposeGate><BuilderPage /></ProposeGate>} />
+          <Route path="/harness" element={<ProposeGate><HarnessPage /></ProposeGate>} />
           <Route path="/review" element={<RoleGate role="Approver"><ReviewPage /></RoleGate>} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<OverviewPage />} />

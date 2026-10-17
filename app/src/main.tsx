@@ -6,6 +6,7 @@ import { BrowserRouter } from "react-router-dom";
 import { App } from "./App";
 import { DataSourceProvider } from "./api";
 import { initMsal } from "./auth/msal";
+import { getMyGroupIds } from "./api/live/graph";
 import { SessionProvider } from "./auth/session";
 import { UiProvider, useUi } from "./state/ui";
 import "./styles.css";
@@ -34,7 +35,7 @@ initMsal()
         <QueryClientProvider client={queryClient}>
           <BrowserRouter>
             <UiProvider>
-              <SessionProvider>
+              <SessionProvider loadGroups={getMyGroupIds}>
                 <DataSourceProvider>
                   <Themed />
                 </DataSourceProvider>

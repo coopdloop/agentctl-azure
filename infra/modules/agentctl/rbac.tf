@@ -37,3 +37,51 @@ resource "azurerm_role_assignment" "viewer_ai_user" {
   role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d"
   principal_id       = each.value.principal
 }
+
+# Data scopes: Foundry User on exactly the scoped projects (Azure-enforced project isolation).
+resource "azuread_group" "scope" {
+  for_each         = { for k, v in var.access_scopes : k => v if v.create_group }
+  display_name     = "${var.role_groups.name_prefix}-${var.environment}-scope-${each.key}"
+  description      = "agentctl data scope '${each.key}': ${join(", ", [for p in each.value.projects : "${basename(p.account_id)}/${p.project}"])}"
+  security_enabled = true
+  owners           = [data.azurerm_client_config.current.object_id]
+  members          = each.value.members
+
+  lifecycle {
+    ignore_changes = [owners]
+  }
+}
+
+locals {
+  scope_groups = {
+    for k, v in var.access_scopes : k => concat(v.group_ids, v.create_group ? [azuread_group.scope[k].object_id] : [])
+  }
+
+  scope_project_grants = merge([
+    for sname, sc in var.access_scopes : merge([
+      for gi, g in local.scope_groups[sname] : {
+        for p in sc.projects : "${sname}|${gi}|${basename(p.account_id)}/${p.project}" => {
+          principal = g
+          scope     = "${p.account_id}/projects/${p.project}"
+        }
+      }
+    ]...)
+  ]...)
+
+  access_config = jsonencode({
+    unscopedDefault = var.unscoped_default
+    scopes = [
+      for sname, sc in var.access_scopes : merge(
+        { name = sname, groups = local.scope_groups[sname], projects = [for p in sc.projects : "${basename(p.account_id)}/${p.project}"] },
+        sc.agents == null ? {} : { agents = sc.agents },
+      )
+    ]
+  })
+}
+
+resource "azurerm_role_assignment" "scope_project" {
+  for_each           = local.scope_project_grants
+  scope              = each.value.scope
+  role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d"
+  principal_id       = each.value.principal
+}

@@ -8,6 +8,16 @@ const list = (v) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
+function parseJson(v, fallback) {
+  if (!v) return fallback;
+  try {
+    return JSON.parse(v);
+  } catch {
+    console.warn("agentctl: invalid JSON in runtime config; using default");
+    return fallback;
+  }
+}
+
 export function buildRuntimeConfig(env = process.env) {
   return {
     mode: env.AGENTCTL_MODE === "live" ? "live" : "mock",
@@ -35,6 +45,8 @@ export function buildRuntimeConfig(env = process.env) {
       basePath: env.AGENTCTL_GITOPS_BASE_PATH || "agents",
       agentModuleSource: env.AGENTCTL_AGENT_MODULE_SOURCE || "../../modules/foundry-agent",
     },
+    // JSON: {"unscopedDefault":"all"|"none","scopes":[{"name","groups":[oid],"projects":["account/project"],"agents":["glob"]}]}
+    access: parseJson(env.AGENTCTL_ACCESS_SCOPES, { scopes: [], unscopedDefault: "all" }),
     approvals: {
       // Entra group object ids or names per risk tier; written into change requests.
       read: list(env.AGENTCTL_APPROVERS_READ || "agent-owners"),

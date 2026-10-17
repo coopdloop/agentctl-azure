@@ -5,77 +5,218 @@
   "description": "A reviewable request to create an agent or change an existing one (tool injection, instruction updates, guardrail changes). The pipeline enforces spec.approvals.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "required": [
+    "apiVersion",
+    "kind",
+    "metadata",
+    "spec"
+  ],
   "properties": {
-    "apiVersion": { "const": "agentctl.lariat.dev/v1alpha1" },
-    "kind": { "const": "ChangeRequest" },
+    "apiVersion": {
+      "const": "agentctl.lariat.dev/v1alpha1"
+    },
+    "kind": {
+      "const": "ChangeRequest"
+    },
     "metadata": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "title", "createdAt", "requestedBy", "source"],
+      "required": [
+        "id",
+        "title",
+        "createdAt",
+        "requestedBy",
+        "source"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^cr-[0-9]{8}-[a-z0-9]{6}$" },
-        "title": { "type": "string", "minLength": 5, "maxLength": 200 },
-        "createdAt": { "type": "string", "format": "date-time" },
-        "requestedBy": { "type": "string" },
-        "source": { "const": "agentctl-ui" }
+        "id": {
+          "type": "string",
+          "pattern": "^cr-[0-9]{8}-[a-z0-9]{6}$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 5,
+          "maxLength": 200
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "requestedBy": {
+          "type": "string"
+        },
+        "source": {
+          "const": "agentctl-ui"
+        }
       }
     },
     "spec": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["target", "changeType", "rationale", "changes", "risk", "approvals", "manifestSha256"],
+      "required": [
+        "target",
+        "changeType",
+        "rationale",
+        "changes",
+        "risk",
+        "approvals",
+        "manifestSha256"
+      ],
       "properties": {
         "target": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["agent", "project", "account"],
-          "properties": { "agent": { "type": "string" }, "project": { "type": "string" }, "account": { "type": "string" }, "foundryAgentId": { "type": "string" } }
+          "required": [
+            "agent",
+            "project",
+            "account"
+          ],
+          "properties": {
+            "agent": {
+              "type": "string"
+            },
+            "project": {
+              "type": "string"
+            },
+            "account": {
+              "type": "string"
+            },
+            "foundryAgentId": {
+              "type": "string"
+            }
+          }
         },
-        "changeType": { "enum": ["create", "update"] },
-        "rationale": { "type": "string", "minLength": 10 },
+        "changeType": {
+          "enum": [
+            "create",
+            "update"
+          ]
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 10
+        },
         "changes": {
           "type": "array",
           "minItems": 1,
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": ["op", "path", "summary", "riskTier"],
+            "required": [
+              "op",
+              "path",
+              "summary",
+              "riskTier"
+            ],
             "properties": {
               "op": {
-                "enum": ["create_agent", "add_tool", "remove_tool", "modify_tool", "update_instructions", "inject_instruction", "remove_injection", "update_guardrails", "update_identity", "update_access", "update_model", "update_metadata", "update_other"]
+                "enum": [
+                  "create_agent",
+                  "add_tool",
+                  "remove_tool",
+                  "modify_tool",
+                  "update_instructions",
+                  "inject_instruction",
+                  "remove_injection",
+                  "update_guardrails",
+                  "update_identity",
+                  "update_access",
+                  "update_model",
+                  "update_metadata",
+                  "update_other"
+                ]
               },
-              "path": { "type": "string" },
-              "summary": { "type": "string" },
-              "riskTier": { "enum": ["read", "write", "privileged"] }
+              "path": {
+                "type": "string"
+              },
+              "summary": {
+                "type": "string"
+              },
+              "riskTier": {
+                "enum": [
+                  "read",
+                  "write",
+                  "privileged"
+                ]
+              }
             }
           }
         },
         "risk": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["tier", "score", "reasons"],
+          "required": [
+            "tier",
+            "score",
+            "reasons"
+          ],
           "properties": {
-            "tier": { "enum": ["read", "write", "privileged"] },
-            "score": { "type": "integer", "minimum": 0, "maximum": 100 },
-            "reasons": { "type": "array", "items": { "type": "string" } }
+            "tier": {
+              "enum": [
+                "read",
+                "write",
+                "privileged"
+              ]
+            },
+            "score": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "reasons": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
           }
         },
         "approvals": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["required", "minApprovers"],
+          "required": [
+            "required",
+            "minApprovers"
+          ],
           "properties": {
             "required": {
               "type": "array",
               "minItems": 1,
-              "items": { "type": "object", "additionalProperties": false, "required": ["group", "reason"], "properties": { "group": { "type": "string" }, "reason": { "type": "string" } } }
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "group",
+                  "reason"
+                ],
+                "properties": {
+                  "group": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                }
+              }
             },
-            "minApprovers": { "type": "integer", "minimum": 1 }
+            "minApprovers": {
+              "type": "integer",
+              "minimum": 1
+            }
           }
         },
-        "baseManifestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "manifestSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        "baseManifestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "manifestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "proposal": {
+          "type": "boolean",
+          "description": "Submitted by a Requester: the pipeline opens a draft PR that an agent owner must adopt."
+        }
       }
     }
   }

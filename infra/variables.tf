@@ -72,3 +72,15 @@ variable "app_service" {
   type    = any
   default = {}
 }
+variable "role_groups" {
+  type    = any
+  default = {}
+}
+variable "access_scopes" {
+  type    = any
+  default = {}
+}
+variable "unscoped_default" {
+  type    = string
+  default = "all"
+}

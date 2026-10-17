@@ -90,7 +90,8 @@ export async function verifyBundle(files: Record<string, string>): Promise<Verif
     const under = tierRank(cr.spec.risk.tier) < tierRank(risk.tier);
     add("Declared risk", under ? "fail" : "pass", under ? `declared ${cr.spec.risk.tier}, recomputed ${risk.tier}` : `declared ${cr.spec.risk.tier} ≥ recomputed ${risk.tier}`);
     const declared = new Set(cr.spec.approvals.required.map((a) => a.group));
-    const missing = recomputed.approvers.filter((g) => !declared.has(g));
+    const expected = cr.spec.proposal ? [...recomputed.approvers, ...after.metadata.owners] : recomputed.approvers;
+    const missing = expected.filter((g) => !declared.has(g));
     add("Approvers", missing.length ? "fail" : "pass", missing.length ? `missing: ${missing.join(", ")}` : `${declared.size} group(s), min ${cr.spec.approvals.minApprovers}`);
   }
 

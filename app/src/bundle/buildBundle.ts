@@ -44,6 +44,8 @@ export interface BundleInput {
   rationale: string;
   requestedBy: string;
   foundryAgentId?: string;
+  /** Requester (not Builder): mark as a proposal that agent owners must adopt. */
+  proposal?: boolean;
 }
 
 export interface BundleResult {
@@ -65,13 +67,17 @@ export async function buildBundle(input: BundleInput): Promise<BundleResult> {
   const changes = computeChanges(before, after);
   const risk = assessRisk(changes, after);
   const approvals = requiredApprovals(changes, risk);
+  if (input.proposal) {
+    for (const o of after.metadata.owners)
+      if (!approvals.required.some((r) => r.group === o)) approvals.required.unshift({ group: o, reason: "agent owner must adopt this proposal" });
+  }
 
   const changeRequest: ChangeRequest = {
     apiVersion: API_VERSION,
     kind: "ChangeRequest",
     metadata: {
       id: crId(now),
-      title: input.title,
+      title: input.proposal && !input.title.startsWith("[Proposal]") ? `[Proposal] ${input.title}` : input.title,
       createdAt: now.toISOString(),
       requestedBy: input.requestedBy,
       source: "agentctl-ui",
@@ -84,6 +90,7 @@ export async function buildBundle(input: BundleInput): Promise<BundleResult> {
         ...(input.foundryAgentId ? { foundryAgentId: input.foundryAgentId } : {}),
       },
       changeType: before ? "update" : "create",
+      ...(input.proposal ? { proposal: true } : {}),
       rationale: input.rationale,
       changes: changes.length ? changes : [{ op: "update_other", path: "/", summary: "No effective changes", riskTier: "read" }],
       risk,

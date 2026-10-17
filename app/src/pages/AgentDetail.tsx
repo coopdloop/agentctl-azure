@@ -42,7 +42,7 @@ export function AgentDetailPage() {
   const { project = "", id = "" } = useParams();
   const nav = useNavigate();
   const { range } = useUi();
-  const { can } = useSession();
+  const { can, canPropose } = useSession();
   const agentQ = useDs("getAgent", project, id);
   const [tab, setTab] = useState("overview");
 
@@ -68,10 +68,10 @@ export function AgentDetailPage() {
                   <Button
                     appearance="primary"
                     icon={<BranchRequest20Regular />}
-                    disabled={!can("Builder")}
+                    disabled={!canPropose}
                     onClick={() => nav(`/harness?project=${encodeURIComponent(agent.project)}&id=${encodeURIComponent(agent.id)}`)}
                   >
-                    Propose change
+                    {can("Builder") ? "Propose change" : "Suggest change"}
                   </Button>
                 </div>
               }
@@ -79,13 +79,13 @@ export function AgentDetailPage() {
             <TabList className={s.tabs} selectedValue={tab} onTabSelect={(_, d) => setTab(d.value as string)}>
               <Tab value="overview">Overview</Tab>
               <Tab value="activity">Activity</Tab>
-              <Tab value="identity">Identity & access</Tab>
+              {can("IdentityReader") && <Tab value="identity">Identity & access</Tab>}
               <Tab value="guardrails">Guardrails</Tab>
               <Tab value="manifest">Manifest</Tab>
             </TabList>
             {tab === "overview" && <OverviewTab agent={agent} range={range} />}
             {tab === "activity" && <ActivityTab agentName={agent.name} range={range} />}
-            {tab === "identity" && <IdentityTab agentName={agent.name} range={range} />}
+            {tab === "identity" && can("IdentityReader") && <IdentityTab agentName={agent.name} range={range} />}
             {tab === "guardrails" && <GuardrailsTab agentId={agent.id} account={agent.account} model={agent.model} />}
             {tab === "manifest" && <ManifestTab agent={agent} />}
           </>

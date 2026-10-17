@@ -45,6 +45,9 @@ module "agentctl" {
   approver_groups      = var.approver_groups
   bundle_storage       = var.bundle_storage
   app_service          = var.app_service
+  role_groups          = var.role_groups
+  access_scopes        = var.access_scopes
+  unscoped_default     = var.unscoped_default
 }
 
 output "app_url" { value = module.agentctl.app_url }
@@ -53,3 +56,4 @@ output "resource_group_name" { value = module.agentctl.resource_group_name }
 output "client_id" { value = module.agentctl.client_id }
 output "graph_scopes_skipped" { value = module.agentctl.graph_scopes_skipped }
 output "local_env" { value = module.agentctl.local_env }
+output "role_group_ids" { value = module.agentctl.role_group_ids }

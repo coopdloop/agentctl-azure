@@ -35,7 +35,7 @@ import {
 } from "@fluentui/react-icons";
 import { useState, type ReactNode } from "react";
 import { NavLink, useLocation } from "react-router-dom";
-import { ALL_ROLES, useSession, type AppRole } from "../auth/session";
+import { ALL_ROLES, MOCK_ACCESS, useSession, type AppRole } from "../auth/session";
 import { config } from "../config";
 import type { TimeRange } from "../api/types";
 import { useUi } from "../state/ui";
@@ -44,7 +44,7 @@ const NAV: { to: string; label: string; icon: ReactNode; role?: AppRole; group: 
   { to: "/", label: "Overview", icon: <Board20Regular />, group: "Observe" },
   { to: "/agents", label: "Agents", icon: <Bot20Regular />, group: "Observe" },
   { to: "/activity", label: "Activity & traces", icon: <Pulse20Regular />, group: "Observe" },
-  { to: "/identity", label: "Identity & access", icon: <PersonKey20Regular />, group: "Observe" },
+  { to: "/identity", label: "Identity & access", icon: <PersonKey20Regular />, role: "IdentityReader", group: "Observe" },
   { to: "/guardrails", label: "Guardrails", icon: <ShieldCheckmark20Regular />, group: "Govern" },
   { to: "/builder", label: "Agent builder", icon: <Wrench20Regular />, role: "Builder", group: "Change" },
   { to: "/harness", label: "Harness injection", icon: <BranchRequest20Regular />, role: "Builder", group: "Change" },
@@ -123,6 +123,13 @@ export function Layout({ children }: { children: ReactNode }) {
         <Badge appearance="tint" color={session.mode === "live" ? "success" : "warning"} className={s.hideSmall}>
           {session.mode === "live" ? `Live · ${config.environment}` : "Mock data"}
         </Badge>
+        {!session.scope.all && (
+          <Tooltip content={`Data scope: ${session.scope.names.join(", ") || "none"}. Only these projects/agents are shown; Azure RBAC enforces project access.`} relationship="description">
+            <Badge appearance="outline" color="brand" className={s.hideSmall}>
+              Scope: {session.scope.names.join(", ") || "none"}
+            </Badge>
+          </Tooltip>
+        )}
         <div className={s.spacer} />
         <TabList size="small" selectedValue={range} onTabSelect={(_, d) => setRange(d.value as TimeRange)} aria-label="Time range">
           {(["1h", "24h", "7d", "30d"] as TimeRange[]).map((r) => (
@@ -140,9 +147,10 @@ export function Layout({ children }: { children: ReactNode }) {
           </MenuTrigger>
           <MenuPopover>
             <MenuList
-              checkedValues={{ roles: session.roles, mode: [session.mode] }}
+              checkedValues={{ roles: session.roles, groups: session.groups, mode: [session.mode] }}
               onCheckedValueChange={(_, d) => {
                 if (d.name === "roles") session.setMockRoles(d.checkedItems as AppRole[]);
+                if (d.name === "groups") session.setMockGroups(d.checkedItems);
               }}
             >
               <MenuGroup>
@@ -163,6 +171,19 @@ export function Layout({ children }: { children: ReactNode }) {
                   </MenuItemCheckbox>
                 ))}
               </MenuGroup>
+              {session.mode === "mock" && (
+                <>
+                  <MenuDivider />
+                  <MenuGroup>
+                    <MenuGroupHeader>Simulated scope groups</MenuGroupHeader>
+                    {MOCK_ACCESS.scopes.map((sc) => (
+                      <MenuItemCheckbox key={sc.name} name="groups" value={sc.groups[0]}>
+                        {sc.name}
+                      </MenuItemCheckbox>
+                    ))}
+                  </MenuGroup>
+                </>
+              )}
             </MenuList>
           </MenuPopover>
         </Menu>
@@ -171,7 +192,7 @@ export function Layout({ children }: { children: ReactNode }) {
         {NAV.map((n) => {
           const showGroup = !collapsed && n.group !== lastGroup;
           lastGroup = n.group;
-          const allowed = !n.role || session.can(n.role);
+          const allowed = !n.role || session.can(n.role) || ((n.to === "/builder" || n.to === "/harness") && session.canPropose);
           const link = (
             <NavLink
               key={n.to}

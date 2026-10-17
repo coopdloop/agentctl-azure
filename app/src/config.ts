@@ -1,3 +1,5 @@
+import { parseAccessConfig, type AccessConfig } from "./auth/scope";
+
 export type RiskTier = "read" | "write" | "privileged";
 
 export interface RuntimeConfig {
@@ -15,6 +17,7 @@ export interface RuntimeConfig {
     foundryScope: string;
   };
   gitops: { repo: string; basePath: string; agentModuleSource: string };
+  access: AccessConfig;
   approvals: Record<RiskTier, string[]>;
 }
 
@@ -39,6 +42,7 @@ const defaults: RuntimeConfig = {
     foundryScope: "https://ai.azure.com/.default",
   },
   gitops: { repo: "", basePath: "agents", agentModuleSource: "../../modules/foundry-agent" },
+  access: { scopes: [], unscopedDefault: "all" },
   approvals: {
     read: ["agent-owners"],
     write: ["agent-owners", "platform-security"],
@@ -54,6 +58,7 @@ export const config: RuntimeConfig = {
   auth: { ...defaults.auth, ...injected.auth },
   azure: { ...defaults.azure, ...injected.azure },
   gitops: { ...defaults.gitops, ...injected.gitops },
+  access: parseAccessConfig(injected.access),
   approvals: { ...defaults.approvals, ...injected.approvals },
 };
 

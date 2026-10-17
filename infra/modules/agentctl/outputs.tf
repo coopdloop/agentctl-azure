@@ -58,3 +58,12 @@ output "local_env" {
     [""],
   ))
 }
+
+output "role_group_ids" {
+  description = "Object ids of the per-role groups created by this module (role_groups.create)."
+  value       = { for k, g in azuread_group.role : k => g.object_id }
+}
+
+output "scope_group_ids" {
+  value = { for k, g in azuread_group.scope : k => g.object_id }
+}

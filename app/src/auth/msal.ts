@@ -27,8 +27,8 @@ const msalConfig: Configuration = {
   auth: {
     clientId: config.auth.clientId,
     authority: `https://login.microsoftonline.com/${config.auth.tenantId || "organizations"}`,
-    redirectUri: config.auth.redirectUri || window.location.origin,
-    postLogoutRedirectUri: window.location.origin,
+    redirectUri: config.auth.redirectUri || (typeof window !== "undefined" ? window.location.origin : ""),
+    postLogoutRedirectUri: typeof window !== "undefined" ? window.location.origin : "",
   },
   cache: { cacheLocation: "sessionStorage" },
 };

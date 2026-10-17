@@ -200,6 +200,8 @@ export interface ChangeRequest {
   spec: {
     target: { agent: string; project: string; account: string; foundryAgentId?: string };
     changeType: "create" | "update";
+    /** Requester-submitted: an owner must adopt it before normal approvals apply. */
+    proposal?: boolean;
     rationale: string;
     changes: ChangeItem[];
     risk: { tier: RiskTier; score: number; reasons: string[] };

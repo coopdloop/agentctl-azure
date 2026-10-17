@@ -8,10 +8,12 @@ locals {
   ai_app_id    = "18a66f5f-dbdf-4c17-9dd7-1634712a9cbe" # Azure Machine Learning Services (audience https://ai.azure.com, Foundry data plane)
 
   app_roles = {
-    reader   = { value = "AgentCtl.Reader", display = "Reader", description = "View agent activity, identity usage and guardrail posture." }
-    builder  = { value = "AgentCtl.Builder", display = "Builder", description = "Create agent bundles and harness change requests." }
-    approver = { value = "AgentCtl.Approver", display = "Approver", description = "Review and verify change-request bundles." }
-    admin    = { value = "AgentCtl.Admin", display = "Admin", description = "Bulk remediation and platform guardrail baselines." }
+    reader          = { value = "AgentCtl.Reader", display = "Reader", description = "View agents, activity and guardrail posture (within the user's data scope)." }
+    identity_reader = { value = "AgentCtl.IdentityReader", display = "Identity Reader", description = "View identity & access: sign-ins, permission grants, Azure RBAC, agent identities." }
+    requester       = { value = "AgentCtl.Requester", display = "Requester", description = "Propose new agents and changes; bundles are marked as proposals that owners must adopt." }
+    builder         = { value = "AgentCtl.Builder", display = "Builder", description = "Create agent bundles and harness change requests." }
+    approver        = { value = "AgentCtl.Approver", display = "Approver", description = "Review and verify change-request bundles." }
+    admin           = { value = "AgentCtl.Admin", display = "Admin", description = "Everything, unscoped; bulk remediation and platform guardrail baselines." }
   }
 
   redirect_uris = concat(["https://${local.names.app}.azurewebsites.net/"], var.local_dev_redirect_uris)
@@ -48,6 +50,15 @@ resource "azuread_application" "this" {
   sign_in_audience = "AzureADMyOrg"
   owners           = [data.azurerm_client_config.current.object_id]
   notes            = "Agent control plane SPA. Managed by Terraform (modules/agentctl)."
+
+  # Group object ids in the ID token drive data scoping (access_scopes). Users in >200 groups
+  # get an overage marker instead; the SPA then reads memberships from Graph.
+  group_membership_claims = ["SecurityGroup"]
+  optional_claims {
+    id_token {
+      name = "groups"
+    }
+  }
 
   single_page_application {
     redirect_uris = local.redirect_uris
@@ -117,14 +128,32 @@ resource "azuread_service_principal" "this" {
 }
 
 locals {
-  role_assignments = merge([
-    for role, ids in {
-      reader   = var.app_role_assignments.reader
-      builder  = var.app_role_assignments.builder
-      approver = var.app_role_assignments.approver
-      admin    = var.app_role_assignments.admin
-    } : { for id in ids : "${role}-${id}" => { role = role, principal = id } }
+  role_keys = keys(local.app_roles)
+
+  # Directly assigned principals (bring-your-own groups or users) ...
+  direct_role_assignments = merge([
+    for role in local.role_keys : { for id in lookup(var.app_role_assignments, role, []) : "${role}-${id}" => { role = role, principal = id } }
   ]...)
+
+  # ... plus the optional groups created by this module, one per role.
+  group_role_assignments = var.role_groups.create ? {
+    for role in local.role_keys : "${role}-group" => { role = role, principal = azuread_group.role[role].object_id }
+  } : {}
+
+  role_assignments = merge(local.direct_role_assignments, local.group_role_assignments)
+}
+
+resource "azuread_group" "role" {
+  for_each         = var.role_groups.create ? local.app_roles : {}
+  display_name     = "${var.role_groups.name_prefix}-${var.environment}-${replace(each.key, "_", "-")}s"
+  description      = "agentctl ${each.value.display}: ${each.value.description}"
+  security_enabled = true
+  owners           = [data.azurerm_client_config.current.object_id]
+  members          = lookup(var.role_groups.members, each.key, [])
+
+  lifecycle {
+    ignore_changes = [owners]
+  }
 }
 
 resource "azuread_app_role_assignment" "this" {

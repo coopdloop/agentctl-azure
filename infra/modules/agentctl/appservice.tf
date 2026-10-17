@@ -31,6 +31,7 @@ locals {
     AGENTCTL_APPROVERS_READ            = join(",", var.approver_groups.read)
     AGENTCTL_APPROVERS_WRITE           = join(",", var.approver_groups.write)
     AGENTCTL_APPROVERS_PRIVILEGED      = join(",", var.approver_groups.privileged)
+    AGENTCTL_ACCESS_SCOPES             = local.access_config
   }
 }
 
