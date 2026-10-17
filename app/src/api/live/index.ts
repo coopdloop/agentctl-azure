@@ -252,7 +252,7 @@ export class LiveDataSource implements DataSource {
 
   async manifestFor(agent: Agent) {
     const deps = await settle(this.listDeployments(), []);
-    return agentToManifest(agent, deps, config.azure.subscriptionId);
+    return agentToManifest(agent, deps, agent.subscriptionId || config.azure.subscriptionId);
   }
 
   async health(): Promise<SourceHealth[]> {
@@ -266,7 +266,7 @@ export class LiveDataSource implements DataSource {
       }
     };
     return Promise.all([
-      timed("Azure Resource Manager", async () => `subscription "${await arm.armPing()}"`),
+      timed("Azure Resource Manager", async () => await arm.armPing()),
       timed("Foundry projects (ARM)", async () => `${(await this.listProjects()).length} project(s)`),
       timed("Foundry Agent Service", async () => {
         const p = (await this.listProjects())[0];

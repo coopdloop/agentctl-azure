@@ -4,8 +4,10 @@
 import type { AgentIdentity, PermissionGrant } from "../types";
 import { ApiError, apiFetch, fetchAllPages, settle } from "./http";
 
-const G = "https://graph.microsoft.com/v1.0";
-const GB = "https://graph.microsoft.com/beta";
+import { cloudUrl } from "./endpoints";
+
+const G = `${cloudUrl("graph")}/v1.0`;
+const GB = `${cloudUrl("graph")}/beta`;
 
 const HIGH_PRIV = /(\.ReadWrite\.All$|^Directory\.|^RoleManagement\.|^Application\.ReadWrite|^AppRoleAssignment\.ReadWrite|^Mail\.Send$|^Sites\.FullControl|^Files\.ReadWrite\.All|^User\.ReadWrite\.All)/;
 

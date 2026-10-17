@@ -100,7 +100,7 @@ function mapTool(t: FoundryTool): AgentTool {
 }
 
 function base(p: FoundryProject) {
-  return { project: p.name, account: p.account, resourceGroup: p.resourceGroup };
+  return { project: p.name, account: p.account, resourceGroup: p.resourceGroup, subscriptionId: p.subscriptionId };
 }
 
 export function fromAssistant(p: FoundryProject, a: FoundryAssistant): Agent {

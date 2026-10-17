@@ -72,6 +72,28 @@ variable "app_service" {
   type    = any
   default = {}
 }
+variable "cloud" {
+  description = "AzureCloud, AzureUSGovernment or AzureChinaCloud (providers and app endpoints)."
+  type        = string
+  default     = "AzureCloud"
+}
+variable "observed_subscription_ids" {
+  type    = list(string)
+  default = []
+}
+variable "observe_all_subscriptions" {
+  type    = bool
+  default = false
+}
+variable "additional_log_analytics_ids" {
+  type    = list(string)
+  default = []
+}
+variable "network" {
+  type    = any
+  default = {}
+}
+
 variable "role_groups" {
   type    = any
   default = {}

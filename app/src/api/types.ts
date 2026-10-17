@@ -7,6 +7,7 @@ export type TimeRange = "1h" | "24h" | "7d" | "30d";
 
 export interface FoundryProject {
   id: string; // ARM resource id
+  subscriptionId?: string;
   account: string;
   name: string;
   resourceGroup: string;
@@ -43,6 +44,7 @@ export interface Agent {
   project: string;
   account: string;
   resourceGroup: string;
+  subscriptionId?: string;
   model: string;
   instructions: string;
   tools: AgentTool[];

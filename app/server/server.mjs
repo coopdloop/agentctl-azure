@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { extname, join, normalize, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderConfigJs } from "./config.mjs";
+import { buildServerSettings, renderConfigJs } from "./config.mjs";
 import { createProxyMiddleware } from "./proxy.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -27,6 +27,8 @@ const MIME = {
   ".map": "application/json",
 };
 
+const settings = buildServerSettings();
+
 const SECURITY_HEADERS = {
   "x-content-type-options": "nosniff",
   "referrer-policy": "strict-origin-when-cross-origin",
@@ -38,13 +40,15 @@ const SECURITY_HEADERS = {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' data:",
-    "connect-src 'self' https://login.microsoftonline.com https://management.azure.com https://graph.microsoft.com https://api.loganalytics.azure.com https://api.loganalytics.io https://*.services.ai.azure.com",
-    "frame-src 'self' https://login.microsoftonline.com",
+    // Cloud endpoints the browser calls directly; Foundry (and anything in AGENTCTL_PROXY_SERVICES) goes via /proxy.
+    `connect-src ${settings.connectSrc.join(" ")}`,
+    `frame-src 'self' ${settings.authority}`,
     "frame-ancestors 'none'",
   ].join("; "),
 };
 
-const proxy = createProxyMiddleware();
+const proxy = createProxyMiddleware({ allowedHostSuffixes: settings.proxyAllowlist });
+console.log(`agentctl proxy allowlist: ${settings.proxyAllowlist.join(", ")}`);
 
 async function serveFile(res, filePath, cache) {
   const body = await readFile(filePath);

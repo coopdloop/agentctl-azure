@@ -8,12 +8,21 @@ location       = "eastus2"
 location_short = "eus2"
 tags           = { owner = "platform-team" }
 
+# AzureCloud | AzureUSGovernment | AzureChinaCloud (providers + app endpoints). See docs/ENVIRONMENTS.md.
+cloud = "AzureCloud"
+
+# Extra subscriptions to discover Foundry in (Resource Graph), or every subscription the user can read.
+observed_subscription_ids = []
+observe_all_subscriptions = false
+
 resource_group = { create = true }
 
 # Bring your own workspace / App Insights by flipping create = false and setting existing_id.
 log_analytics = { create = true, retention_days = 90 }
 app_insights  = { create = true }
 # log_analytics = { create = false, existing_id = "/subscriptions/.../resourceGroups/rg-monitor/providers/Microsoft.OperationalInsights/workspaces/law-central" }
+# More workspaces (any subscription), queried together with the primary; e.g. per-team App Insights.
+additional_log_analytics_ids = []
 
 # Observe existing Foundry accounts (projects are discovered at runtime) ...
 foundry = {
@@ -85,3 +94,14 @@ bundle_storage = { enabled = false }
 
 # Hosting. Disable to run the app only locally (e.g. no App Service quota yet).
 app_service = { enabled = true, sku_name = "B1" }
+
+# Private networking (docs/ENVIRONMENTS.md §4). Bring your own VNet, subnets and hub DNS zones.
+network = {
+  enabled = false
+  # app_subnet_id              = "/subscriptions/.../subnets/snet-agentctl-app" # delegated to Microsoft.Web/serverFarms
+  # private_endpoint_subnet_id = "/subscriptions/.../subnets/snet-pe"
+  # app_private_endpoint       = true
+  # foundry_private_endpoint   = true
+  # monitor_private_link       = { enabled = true, query_access_mode = "PrivateOnly" }
+  # private_dns_zone_ids       = { "privatelink.azurewebsites.net" = "/subscriptions/.../privateDnsZones/privatelink.azurewebsites.net" }
+}

@@ -53,6 +53,8 @@ The app role gates the **UI only**. Every Azure call uses the **signed-in user's
    • /healthz
 ```
 
+**Clouds, subscriptions, private networks.** Endpoints come from a cloud profile (`AGENTCTL_CLOUD`); Foundry is discovered across subscriptions with Azure Resource Graph; and any of ARM, Graph and Log Analytics can be routed through `/proxy` (`AGENTCTL_PROXY_SERVICES`) so a VNet-integrated App Service reaches private endpoints. See **[ENVIRONMENTS.md](ENVIRONMENTS.md)**.
+
 **Why a proxy at all?** ARM, Graph and Log Analytics send CORS headers for browser origins; the Foundry project data plane does not reliably do so. The proxy is a dumb, allowlisted pipe, so the app stays "frontend-only" in the sense that matters: no server-side identity and no business logic. The same middleware runs in the Vite dev server (`vite.config.ts`) and in production (`server/server.mjs`).
 
 **Mock and live.** A `DataSource` interface (`src/api/types.ts`) has two implementations:
@@ -69,7 +71,7 @@ The mode is toggled in the UI (account menu or Data sources). Live mode is avail
 
 | View / feature | API | Token audience | User needs |
 |---|---|---|---|
-| Foundry accounts, projects (+ project MI) | ARM `Microsoft.CognitiveServices/accounts[/projects]` `2025-06-01`; falls back to `AGENTCTL_FOUNDRY_PROJECT_ENDPOINTS` for project-scoped users | ARM `user_impersonation` | Reader |
+| Foundry accounts, projects (+ project MI), all subscriptions | Azure Resource Graph (`Microsoft.ResourceGraph/resources`); fallback ARM `Microsoft.CognitiveServices/accounts[/projects]` `2025-06-01` per subscription, then `AGENTCTL_FOUNDRY_PROJECT_ENDPOINTS` | ARM `user_impersonation` | Read on the resources (RBAC-filtered) |
 | Model deployments + RAI policy per deployment | ARM `…/deployments`, `…/raiPolicies` | ARM | Reader |
 | Agent definitions (instructions, tools, model, version, instance identity) | Foundry agents API `GET {project}/agents?api-version=v1` and classic `GET {project}/assistants?api-version=v1`, via `/proxy` | `https://ai.azure.com/.default` | Foundry User on project |
 | Runs, tool calls, tokens, latency, traces | Log Analytics → `AppDependencies`, `AppRequests` (`gen_ai.*` OTel attributes from Foundry tracing) | `https://api.loganalytics.io/Data.Read` | Log Analytics Reader, or agentctl Telemetry Reader (App* tables only) |
@@ -215,6 +217,8 @@ Still manual: inlining OpenAPI specs referenced by URL (`apply-agent.sh` refuses
 | Entra diagnostic setting | **off** | sign-in + Graph activity logs → workspace (needs P1/P2 + Security Admin; one per tenant) |
 | Viewer RBAC | input | Reader (account or subscription), Log Analytics Reader, Foundry User (by role id) on the accounts; for unscoped admins and analysts |
 | Storage account | **off** | optional bundle archive; key access disabled |
+| Cloud, subscriptions, workspaces | `AzureCloud`, provider sub | `cloud`, `observed_subscription_ids` / `observe_all_subscriptions`, `additional_log_analytics_ids`; existing resources in any subscription |
+| Private networking | **off** | `network`: VNet integration, private endpoints (web app, Foundry, AMPLS), private DNS (BYO or created), derived `AGENTCTL_PROXY_SERVICES` |
 
 `infra/modules/foundry-agent` is called by every bundle. It creates the agent's identity (UAMI, or takes an Agent ID principal / project MI), its RBAC, the RAI policy, optionally attaches the policy to the deployment, and optionally applies the agent definition.
 
@@ -251,7 +255,8 @@ Still manual: inlining OpenAPI specs referenced by URL (`apply-agent.sh` refuses
 - **RAI filter names** in `modules/foundry-agent` use the lowercase names returned by recent API versions (`hate`, `jailbreak`, `indirect_attack`, `protected_material_text`…). Verify them against your account's existing policies before the first apply.
 - **OBO** classification is heuristic (§4.1).
 - **Runtime limits** are recorded in metadata only. Enforcement needs APIM or the agent host.
-- **Single subscription.** Multi-subscription discovery would use Resource Graph (planned).
+- **Sovereign clouds:** endpoint profiles exist for US Gov and China, but only the public cloud has been validated end to end (ENVIRONMENTS.md §1).
+- **Private networking** has been validated at plan level and for proxy routing; App Service could not be deployed in the reference tenant (quota).
 - **Telemetry isolation** is per workspace, not per scope (see ACCESS.md §4).
 
 ## 12. Roadmap
@@ -259,6 +264,6 @@ Still manual: inlining OpenAPI specs referenced by URL (`apply-agent.sh` refuses
 2. Approval queue in agentctl, backed by the storage account (or Cosmos DB), with Entra-signed approvals.
 3. APIM AI gateway integration: runtime enforcement of limits and tool approval; a gateway telemetry tab.
 4. A Defender for AI alerts tab; Purview DSPM signals.
-5. Multi-subscription via Resource Graph; private networking (VNet integration, private endpoints); Foundry workflows and hosted agents.
+5. ~~Multi-subscription, private networking, cloud profiles~~ (done, ENVIRONMENTS.md). Next: Foundry workflows and hosted agents.
 7. SSDLC: CI (typecheck/test/build, dependency audit, CodeQL, secret scanning, IaC scanning, SBOM), threat model, OIDC deploys.
 6. Kill switch: a harness tool already exists in the catalog; add a platform-side pause list.

@@ -2,15 +2,30 @@ import { parseAccessConfig, type AccessConfig } from "./auth/scope";
 
 export type RiskTier = "read" | "write" | "privileged";
 
+export interface CloudProfile {
+  name: string;
+  authority: string;
+  arm: string;
+  graph: string;
+  logAnalytics: string;
+  logAnalyticsAudience: string;
+  foundryAudience: string;
+  foundryHostSuffixes: string[];
+}
+
 export interface RuntimeConfig {
   mode: "mock" | "live";
+  cloud: CloudProfile;
+  network: { proxyServices: ("arm" | "graph" | "logAnalytics")[] };
   environment: string;
   auth: { tenantId: string; clientId: string; redirectUri: string };
   azure: {
     subscriptionId: string;
+    subscriptionIds: string[];
     resourceGroups: string[];
     logAnalyticsWorkspaceId: string;
     logAnalyticsWorkspaceResourceId: string;
+    additionalWorkspaceIds: string[];
     appInsightsResourceId: string;
     foundryProjectEndpoints: string[];
     foundryApiVersion: string;
@@ -30,12 +45,25 @@ declare global {
 const defaults: RuntimeConfig = {
   mode: "mock",
   environment: "local",
+  cloud: {
+    name: "AzureCloud",
+    authority: "https://login.microsoftonline.com",
+    arm: "https://management.azure.com",
+    graph: "https://graph.microsoft.com",
+    logAnalytics: "https://api.loganalytics.azure.com",
+    logAnalyticsAudience: "https://api.loganalytics.io",
+    foundryAudience: "https://ai.azure.com",
+    foundryHostSuffixes: [".services.ai.azure.com", ".cognitiveservices.azure.com", ".openai.azure.com"],
+  },
+  network: { proxyServices: [] },
   auth: { tenantId: "", clientId: "", redirectUri: "" },
   azure: {
     subscriptionId: "",
+    subscriptionIds: [],
     resourceGroups: [],
     logAnalyticsWorkspaceId: "",
     logAnalyticsWorkspaceResourceId: "",
+    additionalWorkspaceIds: [],
     appInsightsResourceId: "",
     foundryProjectEndpoints: [],
     foundryApiVersion: "v1",
@@ -56,6 +84,8 @@ const injected = (globalThis as { __AGENTCTL_CONFIG__?: Partial<RuntimeConfig> }
 export const config: RuntimeConfig = {
   ...defaults,
   ...injected,
+  cloud: { ...defaults.cloud, ...injected.cloud },
+  network: { ...defaults.network, ...injected.network },
   auth: { ...defaults.auth, ...injected.auth },
   azure: { ...defaults.azure, ...injected.azure },
   gitops: { ...defaults.gitops, ...injected.gitops },
@@ -63,5 +93,5 @@ export const config: RuntimeConfig = {
   approvals: { ...defaults.approvals, ...injected.approvals },
 };
 
-/** Live mode needs at least an app registration and a subscription. */
-export const liveCapable = Boolean(config.auth.clientId && config.auth.tenantId && config.azure.subscriptionId);
+/** Live mode needs an app registration. Subscriptions are optional (empty = all the user can read). */
+export const liveCapable = Boolean(config.auth.clientId && config.auth.tenantId);

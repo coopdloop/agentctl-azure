@@ -14,16 +14,20 @@ const useStyles = makeStyles({
   code: { background: tokens.colorNeutralBackground3 },
 });
 
+const host = (u: string) => u.replace(/^https:\/\//, "");
+const via = (svc: "arm" | "graph" | "logAnalytics") => (config.network.proxyServices.includes(svc) ? " (via /proxy)" : "");
+const { cloud } = config;
 const SOURCES: { source: string; api: string; token: string; permission: string; feeds: string }[] = [
-  { source: "Azure Resource Manager", api: "management.azure.com", token: "ARM user_impersonation", permission: "Reader on the subscription", feeds: "Foundry accounts, projects, deployments, RAI policies, RBAC" },
-  { source: "Foundry Agent Service", api: "<account>.services.ai.azure.com/api/projects/<p> (via /proxy)", token: "https://ai.azure.com", permission: "Azure AI User on each project", feeds: "Agent definitions, tools, instructions" },
-  { source: "Log Analytics", api: "api.loganalytics.azure.com", token: "Log Analytics Data.Read", permission: "Log Analytics Reader on the workspace", feeds: "Traces, sign-in logs, Graph activity" },
-  { source: "App Insights (workspace-based)", api: "AppDependencies / AppRequests tables", token: "(same as Log Analytics)", permission: "Reader on the component, or workspace access", feeds: "gen_ai spans: runs, tool calls, tokens" },
+  { source: "Azure Resource Manager", api: host(cloud.arm) + via("arm"), token: "ARM user_impersonation", permission: "Reader on observed subscriptions (or Foundry User per project)", feeds: "Foundry accounts, projects, deployments, RAI policies, RBAC" },
+  { source: "Azure Resource Graph", api: `${host(cloud.arm)}/providers/Microsoft.ResourceGraph${via("arm")}`, token: "ARM user_impersonation", permission: "Read on the resources (RBAC-filtered)", feeds: "Multi-subscription discovery of Foundry accounts and projects" },
+  { source: "Foundry Agent Service", api: `<account>${cloud.foundryHostSuffixes[0]}/api/projects/<p> (via /proxy)`, token: cloud.foundryAudience, permission: "Foundry User on each project", feeds: "Agent definitions, tools, instructions" },
+  { source: "Log Analytics", api: host(cloud.logAnalytics) + via("logAnalytics"), token: "Log Analytics Data.Read", permission: "Log Analytics Reader, or agentctl Telemetry Reader (App* tables)", feeds: "Traces, sign-in logs, Graph activity" },
+  { source: "App Insights (workspace-based)", api: "AppDependencies / AppRequests tables", token: "(same as Log Analytics)", permission: "Workspace access (table-level for scoped users)", feeds: "gen_ai spans: runs, tool calls, tokens" },
   { source: "Entra sign-in logs", api: "SigninLogs, AADNonInteractiveUserSignInLogs, AADServicePrincipalSignInLogs, AADManagedIdentitySignInLogs", token: "(Log Analytics)", permission: "Entra diagnostic setting to the workspace (P1/P2)", feeds: "Delegated / OBO / app / MI usage" },
   { source: "Graph activity logs", api: "MicrosoftGraphActivityLogs", token: "(Log Analytics)", permission: "Entra diagnostic setting (Graph activity)", feeds: "What agents call in Graph" },
-  { source: "Microsoft Graph", api: "graph.microsoft.com/v1.0", token: "Application.Read.All, Directory.Read.All, DelegatedPermissionGrant.Read.All", permission: "Admin consent", feeds: "Permission grants, app role assignments, names" },
-  { source: "Entra Agent ID", api: "graph.microsoft.com/beta …/microsoft.graph.agentIdentity", token: "AgentIdentity.Read.All (preview)", permission: "Admin consent; falls back to SPs tagged agentctl-agent", feeds: "Agent identities, blueprints, sponsors" },
-  { source: "Azure Policy", api: "Microsoft.PolicyInsights/policyStates", token: "ARM", permission: "Reader on the subscription", feeds: "Compliance of AI resources" },
+  { source: "Microsoft Graph", api: `${host(cloud.graph)}/v1.0${via("graph")}`, token: "Application.Read.All, Directory.Read.All, DelegatedPermissionGrant.Read.All", permission: "Admin consent", feeds: "Permission grants, app role assignments, names" },
+  { source: "Entra Agent ID", api: `${host(cloud.graph)}/beta …/microsoft.graph.agentIdentity`, token: "AgentIdentity.Read.All (preview)", permission: "Admin consent; falls back to SPs tagged agentctl-agent", feeds: "Agent identities, blueprints, sponsors" },
+  { source: "Azure Policy", api: "Microsoft.PolicyInsights/policyStates", token: "ARM", permission: "Reader on observed subscriptions", feeds: "Compliance of AI resources" },
 ];
 
 export function SettingsPage() {

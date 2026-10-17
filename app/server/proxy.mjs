@@ -25,9 +25,11 @@ const DROP_RESPONSE_HEADERS = new Set([
   "set-cookie",
 ]);
 
-export function isAllowedHost(host, suffixes = DEFAULT_ALLOWED_HOST_SUFFIXES) {
+/** Entries starting with "." match subdomains (never the bare suffix); other entries match exactly. */
+export function isAllowedHost(host, allowlist = DEFAULT_ALLOWED_HOST_SUFFIXES) {
   if (!/^[a-z0-9.-]+$/i.test(host)) return false;
-  return suffixes.some((s) => host.toLowerCase().endsWith(s) && host.length > s.length);
+  const h = host.toLowerCase();
+  return allowlist.some((s) => (s.startsWith(".") ? h.endsWith(s) && h.length > s.length : h === s.toLowerCase()));
 }
 
 function readBody(req) {

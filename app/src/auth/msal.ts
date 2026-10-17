@@ -7,26 +7,23 @@ import {
 import { config, liveCapable } from "../config";
 
 /** One token per audience. Each entry maps to a required_resource_access block in Terraform. */
+/** Graph scopes are resource-qualified so they also resolve in sovereign clouds. */
+const g = (scope: string) => `${config.cloud.graph}/${scope}`;
 export const SCOPES = {
-  arm: ["https://management.azure.com/user_impersonation"],
-  graph: [
-    "User.Read",
-    "Application.Read.All",
-    "Directory.Read.All",
-    "DelegatedPermissionGrant.Read.All",
-  ],
+  arm: [`${config.cloud.arm}/user_impersonation`],
+  graph: [g("User.Read"), g("Application.Read.All"), g("Directory.Read.All"), g("DelegatedPermissionGrant.Read.All")],
   // Entra Agent ID (preview). Requested separately so a tenant without it still works.
-  graphAgentId: ["AgentIdentity.Read.All"],
-  logAnalytics: ["https://api.loganalytics.io/Data.Read"],
+  graphAgentId: [g("AgentIdentity.Read.All")],
+  logAnalytics: [`${config.cloud.logAnalyticsAudience}/Data.Read`],
   foundry: [config.azure.foundryScope],
-} as const;
+};
 
 export type ScopeKey = keyof typeof SCOPES;
 
 const msalConfig: Configuration = {
   auth: {
     clientId: config.auth.clientId,
-    authority: `https://login.microsoftonline.com/${config.auth.tenantId || "organizations"}`,
+    authority: `${config.cloud.authority}/${config.auth.tenantId || "organizations"}`,
     redirectUri: config.auth.redirectUri || (typeof window !== "undefined" ? window.location.origin : ""),
     postLogoutRedirectUri: typeof window !== "undefined" ? window.location.origin : "",
   },

@@ -2,6 +2,7 @@
 // the same workspace (App* tables), so traces and Entra logs are queried in one place.
 
 import { config } from "../../config";
+import { cloudUrl } from "./endpoints";
 import { apiFetch } from "./http";
 
 interface LaResponse {
@@ -12,8 +13,9 @@ export async function kql<T = Record<string, unknown>>(query: string, timespan =
   if (!config.azure.logAnalyticsWorkspaceId) throw new Error("AGENTCTL_LAW_WORKSPACE_ID is not configured");
   const r = await apiFetch<LaResponse>(
     "logAnalytics",
-    `https://api.loganalytics.azure.com/v1/workspaces/${config.azure.logAnalyticsWorkspaceId}/query`,
-    { body: { query, timespan } },
+    `${cloudUrl("logAnalytics")}/v1/workspaces/${config.azure.logAnalyticsWorkspaceId}/query`,
+    // Cross-workspace: extra workspaces (other subscriptions/regions, per-team App Insights) are unioned.
+    { body: { query, timespan, ...(config.azure.additionalWorkspaceIds.length ? { workspaces: config.azure.additionalWorkspaceIds } : {}) } },
     "logAnalytics",
   );
   const t = r.tables[0];

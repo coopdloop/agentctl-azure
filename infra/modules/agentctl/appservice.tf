@@ -13,25 +13,29 @@ resource "azurerm_service_plan" "this" {
 
 locals {
   app_settings = {
-    AGENTCTL_MODE                      = var.app_service.mode
-    AGENTCTL_ENVIRONMENT               = var.environment
-    AGENTCTL_TENANT_ID                 = data.azurerm_client_config.current.tenant_id
-    AGENTCTL_CLIENT_ID                 = azuread_application.this.client_id
-    AGENTCTL_REDIRECT_URI              = "https://${local.names.app}.azurewebsites.net/"
-    AGENTCTL_SUBSCRIPTION_ID           = data.azurerm_client_config.current.subscription_id
-    AGENTCTL_RESOURCE_GROUPS           = ""
-    AGENTCTL_LAW_WORKSPACE_ID          = local.law_customer_id
-    AGENTCTL_LAW_RESOURCE_ID           = local.law_id
-    AGENTCTL_APPINSIGHTS_RESOURCE_ID   = local.appi_id
-    AGENTCTL_FOUNDRY_PROJECT_ENDPOINTS = local.foundry_project_endpoint
-    AGENTCTL_FOUNDRY_API_VERSION       = "v1"
-    AGENTCTL_GITOPS_REPO               = var.gitops.repo
-    AGENTCTL_GITOPS_BASE_PATH          = var.gitops.base_path
-    AGENTCTL_AGENT_MODULE_SOURCE       = var.gitops.agent_module_source
-    AGENTCTL_APPROVERS_READ            = join(",", var.approver_groups.read)
-    AGENTCTL_APPROVERS_WRITE           = join(",", var.approver_groups.write)
-    AGENTCTL_APPROVERS_PRIVILEGED      = join(",", var.approver_groups.privileged)
-    AGENTCTL_ACCESS_SCOPES             = local.access_config
+    AGENTCTL_MODE                         = var.app_service.mode
+    AGENTCTL_ENVIRONMENT                  = var.environment
+    AGENTCTL_TENANT_ID                    = data.azurerm_client_config.current.tenant_id
+    AGENTCTL_CLIENT_ID                    = azuread_application.this.client_id
+    AGENTCTL_REDIRECT_URI                 = "https://${local.names.app}.${local.sfx.web}/"
+    AGENTCTL_SUBSCRIPTION_ID              = data.azurerm_client_config.current.subscription_id
+    AGENTCTL_SUBSCRIPTION_IDS             = var.observe_all_subscriptions ? "" : join(",", distinct(concat([data.azurerm_client_config.current.subscription_id], var.observed_subscription_ids)))
+    AGENTCTL_CLOUD                        = var.cloud
+    AGENTCTL_PROXY_SERVICES               = join(",", local.proxy_services)
+    AGENTCTL_LAW_ADDITIONAL_WORKSPACE_IDS = join(",", local.law_additional_customer_ids)
+    AGENTCTL_RESOURCE_GROUPS              = ""
+    AGENTCTL_LAW_WORKSPACE_ID             = local.law_customer_id
+    AGENTCTL_LAW_RESOURCE_ID              = local.law_id
+    AGENTCTL_APPINSIGHTS_RESOURCE_ID      = local.appi_id
+    AGENTCTL_FOUNDRY_PROJECT_ENDPOINTS    = local.foundry_project_endpoint
+    AGENTCTL_FOUNDRY_API_VERSION          = "v1"
+    AGENTCTL_GITOPS_REPO                  = var.gitops.repo
+    AGENTCTL_GITOPS_BASE_PATH             = var.gitops.base_path
+    AGENTCTL_AGENT_MODULE_SOURCE          = var.gitops.agent_module_source
+    AGENTCTL_APPROVERS_READ               = join(",", var.approver_groups.read)
+    AGENTCTL_APPROVERS_WRITE              = join(",", var.approver_groups.write)
+    AGENTCTL_APPROVERS_PRIVILEGED         = join(",", var.approver_groups.privileged)
+    AGENTCTL_ACCESS_SCOPES                = local.access_config
   }
 }
 
@@ -44,6 +48,10 @@ resource "azurerm_linux_web_app" "this" {
   https_only          = true
   tags                = local.tags
 
+  # Private networking: outbound through the VNet (reaches private endpoints), optional private inbound.
+  virtual_network_subnet_id     = var.network.enabled ? var.network.app_subnet_id : null
+  public_network_access_enabled = !(var.network.enabled && var.network.app_private_endpoint)
+
   # Not used by the app today; ready for future server-side calls with managed identity.
   identity {
     type = "SystemAssigned"
@@ -52,6 +60,7 @@ resource "azurerm_linux_web_app" "this" {
   site_config {
     always_on                         = var.app_service.always_on && !contains(["F1", "FREE", "D1"], upper(var.app_service.sku_name))
     ftps_state                        = "Disabled"
+    vnet_route_all_enabled            = var.network.enabled
     minimum_tls_version               = "1.2"
     http2_enabled                     = true
     health_check_path                 = "/healthz"

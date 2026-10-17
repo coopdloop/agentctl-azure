@@ -8,19 +8,32 @@ resource "azurerm_log_analytics_workspace" "this" {
   tags                = local.tags
 }
 
-locals {
-  law_existing = var.log_analytics.create ? null : provider::azurerm::parse_resource_id(var.log_analytics.existing_id)
+# Existing workspace / App Insights are read by resource id with azapi, so they can live in any
+# subscription (azurerm data sources only search the provider's subscription).
+data "azapi_resource" "law_existing" {
+  count                  = var.log_analytics.create ? 0 : 1
+  type                   = "Microsoft.OperationalInsights/workspaces@2023-09-01"
+  resource_id            = var.log_analytics.existing_id
+  response_export_values = ["properties.customerId"]
 }
 
-data "azurerm_log_analytics_workspace" "existing" {
-  count               = var.log_analytics.create ? 0 : 1
-  name                = local.law_existing.resource_name
-  resource_group_name = local.law_existing.resource_group_name
+locals {
+  law_id          = var.log_analytics.create ? azurerm_log_analytics_workspace.this[0].id : data.azapi_resource.law_existing[0].id
+  law_customer_id = var.log_analytics.create ? azurerm_log_analytics_workspace.this[0].workspace_id : data.azapi_resource.law_existing[0].output.properties.customerId
+}
+
+# More workspaces queried together with the primary one (other subscriptions, regions, teams).
+data "azapi_resource" "law_additional" {
+  for_each               = toset(var.additional_log_analytics_ids)
+  type                   = "Microsoft.OperationalInsights/workspaces@2023-09-01"
+  resource_id            = each.value
+  response_export_values = ["properties.customerId"]
 }
 
 locals {
-  law_id          = var.log_analytics.create ? azurerm_log_analytics_workspace.this[0].id : data.azurerm_log_analytics_workspace.existing[0].id
-  law_customer_id = var.log_analytics.create ? azurerm_log_analytics_workspace.this[0].workspace_id : data.azurerm_log_analytics_workspace.existing[0].workspace_id
+  law_additional_customer_ids = [for id in var.additional_log_analytics_ids : data.azapi_resource.law_additional[id].output.properties.customerId]
+  # Every workspace agentctl queries; viewer and scope telemetry roles are granted on all of them.
+  law_all_ids = concat([local.law_id], var.additional_log_analytics_ids)
 }
 
 resource "azurerm_application_insights" "this" {
@@ -33,17 +46,14 @@ resource "azurerm_application_insights" "this" {
   tags                = local.tags
 }
 
-locals {
-  appi_existing = var.app_insights.create ? null : provider::azurerm::parse_resource_id(var.app_insights.existing_id)
-}
-
-data "azurerm_application_insights" "existing" {
-  count               = var.app_insights.create ? 0 : 1
-  name                = local.appi_existing.resource_name
-  resource_group_name = local.appi_existing.resource_group_name
+data "azapi_resource" "appi_existing" {
+  count                  = var.app_insights.create ? 0 : 1
+  type                   = "Microsoft.Insights/components@2020-02-02"
+  resource_id            = var.app_insights.existing_id
+  response_export_values = ["properties.ConnectionString"]
 }
 
 locals {
-  appi_id                = var.app_insights.create ? azurerm_application_insights.this[0].id : data.azurerm_application_insights.existing[0].id
-  appi_connection_string = var.app_insights.create ? azurerm_application_insights.this[0].connection_string : data.azurerm_application_insights.existing[0].connection_string
+  appi_id                = var.app_insights.create ? azurerm_application_insights.this[0].id : data.azapi_resource.appi_existing[0].id
+  appi_connection_string = var.app_insights.create ? azurerm_application_insights.this[0].connection_string : data.azapi_resource.appi_existing[0].output.properties.ConnectionString
 }

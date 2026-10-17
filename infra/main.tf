@@ -12,17 +12,30 @@ terraform {
   # backend "azurerm" {}  # configure in your real repo
 }
 
+locals {
+  # Provider environment names per cloud.
+  provider_env = {
+    AzureCloud        = { azurerm = "public", azuread = "global", azapi = "public" }
+    AzureUSGovernment = { azurerm = "usgovernment", azuread = "usgovernment", azapi = "usgovernment" }
+    AzureChinaCloud   = { azurerm = "china", azuread = "china", azapi = "china" }
+  }[var.cloud]
+}
+
 provider "azurerm" {
   features {}
   subscription_id     = var.subscription_id
+  environment         = local.provider_env.azurerm
   storage_use_azuread = true
 }
 
 provider "azuread" {
-  tenant_id = var.tenant_id
+  tenant_id   = var.tenant_id
+  environment = local.provider_env.azuread
 }
 
-provider "azapi" {}
+provider "azapi" {
+  environment = local.provider_env.azapi
+}
 
 module "agentctl" {
   source = "./modules/agentctl"
@@ -48,6 +61,12 @@ module "agentctl" {
   role_groups          = var.role_groups
   access_scopes        = var.access_scopes
   unscoped_default     = var.unscoped_default
+
+  cloud                        = var.cloud
+  observed_subscription_ids    = var.observed_subscription_ids
+  observe_all_subscriptions    = var.observe_all_subscriptions
+  additional_log_analytics_ids = var.additional_log_analytics_ids
+  network                      = var.network
 }
 
 output "app_url" { value = module.agentctl.app_url }

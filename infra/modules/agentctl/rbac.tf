@@ -4,7 +4,10 @@
 locals {
   viewers = toset(var.viewer_principal_ids)
 
-  reader_scopes = var.assign_subscription_reader ? { subscription = data.azurerm_subscription.current.id } : local.foundry_accounts_by_key
+  reader_scopes = var.assign_subscription_reader ? merge(
+    { subscription = data.azurerm_subscription.current.id },
+    { for id in var.observed_subscription_ids : "sub-${id}" => "/subscriptions/${id}" if id != data.azurerm_subscription.current.subscription_id },
+  ) : local.foundry_accounts_by_key
 
   viewer_reader = merge([
     for p in local.viewers : { for k, scope in local.reader_scopes : "${p}-${k}" => { principal = p, scope = scope } }
@@ -23,10 +26,13 @@ resource "azurerm_role_assignment" "viewer_reader" {
 }
 
 resource "azurerm_role_assignment" "viewer_law" {
-  for_each             = local.viewers
-  scope                = local.law_id
+  # The primary workspace keeps the original key (principal id) so existing assignments aren't recreated.
+  for_each = merge([
+    for p in local.viewers : { for i, law in local.law_all_ids : (i == 0 ? p : "${p}|${law}") => { principal = p, scope = law } }
+  ]...)
+  scope                = each.value.scope
   role_definition_name = "Log Analytics Reader"
-  principal_id         = each.value
+  principal_id         = each.value.principal
 }
 
 # Read agent definitions on the Foundry data plane. "Azure AI User" was renamed "Foundry User";
@@ -91,10 +97,16 @@ resource "azurerm_role_assignment" "scope_project" {
 # readers / admins. Traces in a shared workspace are not split per scope; the UI filters them.
 locals {
   telemetry_tables = ["AppDependencies", "AppRequests", "AppTraces", "AppExceptions"]
-  scope_telemetry_grants = merge([
+  scope_telemetry_principals = merge([
     for sname, sc in var.access_scopes : {
       for gi, g in local.scope_groups[sname] : "${sname}|${gi}" => g
     } if sc.telemetry
+  ]...)
+  # The primary workspace keeps its original key so existing assignments aren't recreated.
+  scope_telemetry_grants = merge([
+    for k, g in local.scope_telemetry_principals : {
+      for i, law in local.law_all_ids : (i == 0 ? k : "${k}|${law}") => { principal = g, scope = law }
+    }
   ]...)
 }
 
@@ -103,7 +115,7 @@ resource "azurerm_role_definition" "telemetry_reader" {
   name              = "${var.role_groups.name_prefix} Telemetry Reader (${var.environment})"
   scope             = local.law_id
   description       = "Query agent traces (App Insights App* tables) in the agentctl workspace; no access to other tables."
-  assignable_scopes = [local.law_id]
+  assignable_scopes = local.law_all_ids
 
   permissions {
     actions = concat(
@@ -115,7 +127,7 @@ resource "azurerm_role_definition" "telemetry_reader" {
 
 resource "azurerm_role_assignment" "scope_telemetry" {
   for_each           = local.scope_telemetry_grants
-  scope              = local.law_id
+  scope              = each.value.scope
   role_definition_id = azurerm_role_definition.telemetry_reader[0].role_definition_resource_id
-  principal_id       = each.value
+  principal_id       = each.value.principal
 }

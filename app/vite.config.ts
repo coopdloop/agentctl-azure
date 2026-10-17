@@ -2,7 +2,7 @@ import { loadEnv, type Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 // @ts-expect-error - plain ESM shared with the production server
-import { renderConfigJs } from "./server/config.mjs";
+import { buildServerSettings, renderConfigJs } from "./server/config.mjs";
 // @ts-expect-error - plain ESM shared with the production server
 import { createProxyMiddleware } from "./server/proxy.mjs";
 
@@ -11,7 +11,7 @@ function agentctlDevServer(env: Record<string, string>): Plugin {
   return {
     name: "agentctl-dev-server",
     configureServer(server) {
-      const proxy = createProxyMiddleware();
+      const proxy = createProxyMiddleware({ allowedHostSuffixes: buildServerSettings({ ...process.env, ...env }).proxyAllowlist });
       server.middlewares.use((req, res, next) => {
         if (req.url === "/config.js") {
           res.setHeader("content-type", "text/javascript");

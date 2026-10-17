@@ -66,7 +66,19 @@ deleted after the move to the agents API.
 1. **Scoped user saw 0 agents.** ARM discovery lists accounts first, and a project-scoped user can't read the account. Fixed: fall back to the configured project endpoints.
 2. **Every page showed an error.** The user had no workspace access. Fixed: the table-scoped Telemetry Reader role, and 403s now render as an informational note rather than an error.
 
-## 5. Findings
+## 5. Phase 3: environments (multi-subscription, private networking, clouds)
+
+| Check | Result |
+|---|---|
+| Resource Graph discovery | Returns the Foundry account and project (endpoint, managed identity) in one call |
+| Proxy routing (dev server with `AGENTCTL_PROXY_SERVICES=logAnalytics,arm,graph`) | Log Analytics query, Resource Graph query and Graph `/me` all succeed through `/proxy` with real tokens; non-allowlisted hosts are still refused; the normal dev server still refuses ARM |
+| Terraform with current settings | No resource changes; four new app settings (`AGENTCTL_CLOUD`, `AGENTCTL_SUBSCRIPTION_IDS`, `AGENTCTL_PROXY_SERVICES`, `AGENTCTL_LAW_ADDITIONAL_WORKSPACE_IDS`) |
+| Private networking plan (not applied) | Foundry private endpoint, AMPLS (App Insights + workspace) with private endpoint, 8 private DNS zones + VNet links (22 resources). With App Service on: VNet integration, route-all, private inbound endpoint, public access off, `AGENTCTL_PROXY_SERVICES=logAnalytics` (28 resources). Missing DNS zones fail the plan with the zone names |
+| Unit tests | Cloud profiles, endpoint overrides (https only), subscription union, proxy allowlist (exact vs suffix), CSP `connect-src` |
+
+Not validated: an applied private deployment (needs App Service quota and a VNet), sovereign clouds, and more than one subscription (the tenant has one).
+
+## 6. Findings
 
 | # | Finding | Severity | Status |
 |---|---|---|---|
@@ -75,17 +87,16 @@ deleted after the move to the agents API.
 | F3 | App Insights accepts ingestion with the connection string (local auth on) | Medium | Open: disable local auth and use Entra ingestion once the seed and agents use it |
 | F4 | `hr-benefits` v1 lacked the mandatory harness | Low | Fixed through the bundle pipeline (v2) |
 
-## 6. Blockers and open items
+## 7. Blockers and open items
 
 | Item | Owner | Notes |
 |---|---|---|
 | Entra ID P2 trial | tenant admin | The tenant's admin is a personal Microsoft account (guest UPN `…#EXT#…`), and commerce pages block MSA-backed admins. Create a native `admin@<tenant>.onmicrosoft.com` Global Administrator and start the trial at admin.microsoft.com. Then set `entra_diagnostics = { enabled = true }` and re-seed, to populate sign-in and Graph activity logs |
 | App Service quota | subscription owner | Support request → Service and subscription limits → App Service, East US 2, B1. Then `app_service.enabled = true` and `scripts/deploy-app.sh` |
 | agents-gitops repo | platform | `scripts/init-gitops-repo.sh`, then the setup in `templates/agents-gitops/README.md` |
-| Multi-subscription + private networking | agentctl | Phase 3 |
 | SSDLC (CI, scanning, threat model) | agentctl | Phase 4 |
 
-## 7. Re-running this validation elsewhere
+## 8. Re-running this validation elsewhere
 
 1. `cp infra/terraform.tfvars.example infra/terraform.tfvars`; fill in subscription, tenant, Foundry, role groups and one scope with a test user.
 2. `terraform -chdir=infra apply`, then `scripts/local-env-from-tf.sh`.

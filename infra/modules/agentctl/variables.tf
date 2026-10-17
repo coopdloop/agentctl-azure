@@ -132,6 +132,87 @@ variable "role_groups" {
   default = {}
 }
 
+variable "cloud" {
+  description = "Azure cloud: AzureCloud, AzureUSGovernment or AzureChinaCloud. Sets the app's endpoints (AGENTCTL_CLOUD); configure the providers' environment to match in the root."
+  type        = string
+  default     = "AzureCloud"
+  validation {
+    condition     = contains(["AzureCloud", "AzureUSGovernment", "AzureChinaCloud"], var.cloud)
+    error_message = "cloud must be AzureCloud, AzureUSGovernment or AzureChinaCloud."
+  }
+}
+
+variable "observed_subscription_ids" {
+  description = <<-EOT
+    Subscriptions agentctl discovers Foundry in (via Azure Resource Graph), in addition to the
+    provider's subscription. Empty list + observe_all_subscriptions = true: every subscription
+    the signed-in user can read.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
+variable "observe_all_subscriptions" {
+  description = "Discover across every subscription the user can read (AGENTCTL_SUBSCRIPTION_IDS left empty)."
+  type        = bool
+  default     = false
+}
+
+variable "additional_log_analytics_ids" {
+  description = "Resource ids of more Log Analytics workspaces (any subscription) queried together with the primary one, e.g. per-team App Insights workspaces."
+  type        = list(string)
+  default     = []
+}
+
+variable "network" {
+  description = <<-EOT
+    Private networking (see docs/ENVIRONMENTS.md). Bring your own VNet, subnets and (usually) private
+    DNS zones from the hub.
+      app_subnet_id               App Service VNet integration subnet (delegated to Microsoft.Web/serverFarms)
+      private_endpoint_subnet_id  subnet for private endpoints
+      app_private_endpoint        inbound private endpoint for the web app; disables public access
+      foundry_private_endpoint    private endpoint for the Foundry account created by this module
+      monitor_private_link        AMPLS with the workspace(s) + App Insights and a private endpoint
+      private_dns_zone_ids        zone name -> zone id (e.g. privatelink.azurewebsites.net)
+      create_private_dns_zones    create missing zones in the resource group and link them to dns_vnet_id
+      proxy_services              override which APIs the browser reaches through the app's proxy
+  EOT
+  type = object({
+    enabled                    = optional(bool, false)
+    app_subnet_id              = optional(string)
+    private_endpoint_subnet_id = optional(string)
+    app_private_endpoint       = optional(bool, false)
+    foundry_private_endpoint   = optional(bool, false)
+    monitor_private_link = optional(object({
+      enabled               = optional(bool, false)
+      ingestion_access_mode = optional(string, "PrivateOnly")
+      query_access_mode     = optional(string, "PrivateOnly")
+    }), {})
+    private_dns_zone_ids     = optional(map(string), {})
+    create_private_dns_zones = optional(bool, false)
+    dns_vnet_id              = optional(string)
+    proxy_services           = optional(list(string))
+  })
+  default = {}
+
+  validation {
+    condition     = !var.network.enabled || var.network.app_subnet_id != null
+    error_message = "network.app_subnet_id is required when network.enabled (the app's proxy must reach private endpoints)."
+  }
+  validation {
+    condition     = !(var.network.app_private_endpoint || var.network.foundry_private_endpoint || try(var.network.monitor_private_link.enabled, false)) || var.network.private_endpoint_subnet_id != null
+    error_message = "network.private_endpoint_subnet_id is required for any private endpoint."
+  }
+  validation {
+    condition     = !var.network.create_private_dns_zones || var.network.dns_vnet_id != null
+    error_message = "network.dns_vnet_id is required when create_private_dns_zones = true."
+  }
+  validation {
+    condition     = alltrue([for s in coalesce(var.network.proxy_services, []) : contains(["arm", "graph", "logAnalytics"], s)])
+    error_message = "network.proxy_services entries must be arm, graph or logAnalytics."
+  }
+}
+
 variable "access_scopes" {
   description = <<-EOT
     Data scopes. Members of a scope's groups see only that scope's Foundry projects (and optionally

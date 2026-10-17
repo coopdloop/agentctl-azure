@@ -1,4 +1,5 @@
 import { getToken, type ScopeKey } from "../../auth/msal";
+import { routeUrl } from "./endpoints";
 
 export class ApiError extends Error {
   constructor(
@@ -21,8 +22,9 @@ export async function apiFetch<T>(
   source = scope,
 ): Promise<T> {
   const token = await getToken(scope);
+  const target = routeUrl(url);
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, {
+    const res = await fetch(target, {
       method: init.method ?? (init.body ? "POST" : "GET"),
       headers: {
         authorization: `Bearer ${token}`,

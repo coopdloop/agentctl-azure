@@ -100,7 +100,7 @@ locals {
     var.foundry.create ? { created = azapi_resource.foundry_account[0].id } : {},
     { for id in var.foundry.existing_account_ids : basename(id) => id },
   )
-  foundry_project_endpoint = var.foundry.create ? "https://${local.names.foundry}.services.ai.azure.com/api/projects/${var.foundry.project_name}" : ""
+  foundry_project_endpoint = var.foundry.create ? "https://${local.names.foundry}.${local.sfx.foundry}/api/projects/${var.foundry.project_name}" : ""
 }
 
 resource "azurerm_monitor_diagnostic_setting" "foundry" {
