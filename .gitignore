@@ -17,3 +17,4 @@ crash.log
 tfplan
 *.tfplan
 .venv/
+__pycache__/

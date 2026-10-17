@@ -1,0 +1,99 @@
+# Tenant validation log
+
+agentctl was validated end to end against a real tenant (one PAYG subscription, East US 2). This
+file records what was deployed, what was validated, what was found, and what is still open. Use it
+as the runbook for validating another environment.
+
+**Last updated:** 2026-10-17
+
+## 1. Deployed (Terraform, `infra/`)
+
+| Resource | Name | Notes |
+|---|---|---|
+| Resource group | `rg-agentctl-dev-eus2` | |
+| Log Analytics | `law-agentctl-dev-eus2` | 30-day retention |
+| Application Insights | `appi-agentctl-dev-eus2` | workspace-based; the Foundry project's tracing sink |
+| Foundry account + project | `aif-agentctl-dev-eus2-<suffix>` / `agents` | `gpt-4.1` (2025-04-14) GlobalStandard, 50K TPM |
+| Entra app registration | `agentctl-dev` | 6 app roles, SPA redirect `http://localhost:5173/`, admin consent for Graph, ARM, Log Analytics and Foundry |
+| Role groups | `agentctl-dev-{admins,readers,requesters,builders,approvers,identity-readers}` | admin: platform owner; reader + requester: test user |
+| Scope group | `agentctl-dev-scope-hr-team` | test user; Foundry User on project `agents`; agents `hr-*` |
+| Custom role | `agentctl Telemetry Reader (dev)` | App* tables only, assigned to the scope group |
+| App Service | **not deployed** | `app_service.enabled = false`: the subscription has 0 App Service quota (B1 and F1) |
+
+The app runs locally (`npm run dev`) in live mode, with `.env.local` written by `scripts/local-env-from-tf.sh`.
+
+## 2. Seeded agents
+
+`scripts/seed/seed_agents_v2.py` (agents API) creates three agents and drives conversations through
+the OpenAI Responses API with `agent_reference`, so traces, tool calls and content-filter results
+reach App Insights:
+
+| Agent | Tools | Purpose in validation |
+|---|---|---|
+| `it-helpdesk` | function tools (read) | baseline activity |
+| `hr-benefits` | function tools | created **without** the mandatory harness, so the findings engine flags it; later fixed through a bundle (v2) |
+| `finance-report` | function tools (write verbs) | write-tier tool inference |
+
+`scripts/seed/seed_agents.py` is the older Assistants-API variant (classic agents). Its agents were
+deleted after the move to the agents API.
+
+## 3. What was validated
+
+| Area | Result |
+|---|---|
+| Discovery (ARM) | Foundry account, project, deployments and RAI policies listed |
+| Agents API | New-style agents listed with version, kind, model, tools, instance identity (Entra Agent ID) and blueprint |
+| Telemetry KQL | Rewritten against real data: Foundry emits server-side `invoke_agent` / `chat` spans with `gen_ai.agent.name`, usage, `microsoft.foundry.content_filter.results` and content. The caller (`UserAuthenticatedId`) sits on the client HTTP span in the same operation and is joined in |
+| Content safety | Content-filter results and content-capture detection on the Guardrails page |
+| Identity | Graph agent identities (`appId` is null for agent identities; object id used instead), grants, RBAC |
+| Bundle round trip | Live `hr-benefits` → harness injection → bundle → verify → `apply-agent.sh` → **version 2** with both mandatory instructions; the live `agentctl.manifest_sha256` matches the bundle |
+| GitOps checks | `agentctl-verify`, change detection, `terraform validate` (repo layout), drift check (6 scenarios against live `hr-benefits`), approval gate (5 scenarios against a fake GitHub API) |
+| Access model | Admin (unscoped) vs scoped test user (Reader + Requester, `hr-team`): see §4 |
+
+## 4. Access-model test
+
+| Check | Admin | Scoped test user |
+|---|---|---|
+| Scope badge | none | "Scope: hr-team" |
+| Agents | all 3 | `hr-benefits` only |
+| Identity page / tab | yes | blocked (needs IdentityReader) |
+| Builder / Harness | yes | yes; bundles are **[Proposal]** |
+| Review bundle | yes | blocked (needs Approver) |
+| Activity / Overview telemetry | yes | yes, after the Telemetry Reader role (filtered to `hr-*`) |
+| Sign-in / Graph logs | yes | denied by Azure ("Not available with your access") |
+
+**Issues found and fixed during this test**
+1. **Scoped user saw 0 agents.** ARM discovery lists accounts first, and a project-scoped user can't read the account. Fixed: fall back to the configured project endpoints.
+2. **Every page showed an error.** The user had no workspace access. Fixed: the table-scoped Telemetry Reader role, and 403s now render as an informational note rather than an error.
+
+## 5. Findings
+
+| # | Finding | Severity | Status |
+|---|---|---|---|
+| F1 | Foundry server-side tracing stores **full prompt and response content** in App Insights when content capture is on | High (data protection) | Flagged on the Guardrails page; trace access limited to the Telemetry Reader / Log Analytics Reader roles. Decide per agent whether capture stays on |
+| F2 | Telemetry in a shared workspace isn't isolated per scope | Medium | Documented (ACCESS.md §4); use per-team App Insights + workspace for hard isolation |
+| F3 | App Insights accepts ingestion with the connection string (local auth on) | Medium | Open: disable local auth and use Entra ingestion once the seed and agents use it |
+| F4 | `hr-benefits` v1 lacked the mandatory harness | Low | Fixed through the bundle pipeline (v2) |
+
+## 6. Blockers and open items
+
+| Item | Owner | Notes |
+|---|---|---|
+| Entra ID P2 trial | tenant admin | The tenant's admin is a personal Microsoft account (guest UPN `…#EXT#…`), and commerce pages block MSA-backed admins. Create a native `admin@<tenant>.onmicrosoft.com` Global Administrator and start the trial at admin.microsoft.com. Then set `entra_diagnostics = { enabled = true }` and re-seed, to populate sign-in and Graph activity logs |
+| App Service quota | subscription owner | Support request → Service and subscription limits → App Service, East US 2, B1. Then `app_service.enabled = true` and `scripts/deploy-app.sh` |
+| agents-gitops repo | platform | `scripts/init-gitops-repo.sh`, then the setup in `templates/agents-gitops/README.md` |
+| Multi-subscription + private networking | agentctl | Phase 3 |
+| SSDLC (CI, scanning, threat model) | agentctl | Phase 4 |
+
+## 7. Re-running this validation elsewhere
+
+1. `cp infra/terraform.tfvars.example infra/terraform.tfvars`; fill in subscription, tenant, Foundry, role groups and one scope with a test user.
+2. `terraform -chdir=infra apply`, then `scripts/local-env-from-tf.sh`.
+3. Seed agents (needs `az login`):
+   ```bash
+   python3 -m venv .venv && .venv/bin/pip install -r scripts/seed/requirements.txt
+   .venv/bin/python scripts/seed/seed_agents_v2.py --endpoint "<project endpoint>" \
+     --appinsights "$(az monitor app-insights component show -g <rg> -a <appi> --query connectionString -o tsv)"
+   ```
+   Edit the `agentctl.owners` metadata in the script first. The seed turns off client-side content recording, but Foundry's server-side spans still capture content (finding F1).
+4. `cd app && npm run dev`, switch to Live, and work through §3 and §4 as an admin and as the test user.

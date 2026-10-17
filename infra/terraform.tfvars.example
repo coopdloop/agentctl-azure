@@ -17,7 +17,7 @@ app_insights  = { create = true }
 
 # Observe existing Foundry accounts (projects are discovered at runtime) ...
 foundry = {
-  create               = false
+  create = false
   existing_account_ids = [
     # "/subscriptions/.../resourceGroups/rg-ai-prod/providers/Microsoft.CognitiveServices/accounts/aif-contoso-prod",
   ]
@@ -31,15 +31,37 @@ foundry = {
 #   }
 # }
 
-# Entra group object ids
-app_role_assignments = {
-  reader   = [] # ["<group-object-id>"]
-  builder  = []
-  approver = []
-  admin    = []
+# App roles: reader, identity_reader, requester, builder, approver, admin. See docs/ACCESS.md.
+# Either let Terraform create one group per role ...
+role_groups = {
+  create = true # agentctl-<env>-admins, -readers, -requesters, -builders, -approvers, -identity-readers
+  members = {
+    admin = [] # ["<user-or-group-object-id>"]
+    # reader    = []
+    # requester = []
+  }
 }
-# Same groups typically; grants Reader / Log Analytics Reader / Azure AI User for live mode.
+# ... and/or assign existing users/groups directly.
+app_role_assignments = {
+  # builder = ["<group-object-id>"]
+}
+
+# Unscoped viewers (admins, identity analysts): Reader + Log Analytics Reader + Foundry User on the
+# accounts. Don't add scoped users here.
 viewer_principal_ids = []
+
+# Data scopes: members see only these projects (Azure-enforced) and agents (UI filter), and can
+# query only the App* trace tables. See docs/ACCESS.md.
+access_scopes = {
+  # hr-team = {
+  #   create_group = true
+  #   members      = ["<user-object-id>"]
+  #   projects     = [{ account_id = "/subscriptions/.../accounts/aif-contoso-prod", project = "agents" }]
+  #   agents       = ["hr-*"]
+  #   telemetry    = true
+  # }
+}
+unscoped_default = "all" # "none" = users in no scope see nothing (Admins are never scoped)
 
 # Exports sign-in + Graph activity logs to the workspace (P1/P2 + Security Admin required).
 # Leave false if the tenant already exports them to this workspace.
@@ -47,9 +69,10 @@ entra_diagnostics   = { enabled = false }
 grant_admin_consent = false
 
 gitops = {
-  repo                = "https://github.com/contoso/agent-gitops"
-  base_path           = "agents"
-  agent_module_source = "git::https://github.com/contoso/infra-modules.git//foundry-agent?ref=v1.0.0"
+  repo      = "https://github.com/contoso/agent-gitops"
+  base_path = "agents"
+  # Relative to agents/<name>/terraform in the agents-gitops repo, or a pinned git source.
+  agent_module_source = "../../../modules/foundry-agent"
 }
 
 approver_groups = {
@@ -59,3 +82,6 @@ approver_groups = {
 }
 
 bundle_storage = { enabled = false }
+
+# Hosting. Disable to run the app only locally (e.g. no App Service quota yet).
+app_service = { enabled = true, sku_name = "B1" }
