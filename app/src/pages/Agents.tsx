@@ -75,6 +75,19 @@ export function AgentsPage() {
                       </div>
                     ),
                   },
+                  {
+                    key: "api",
+                    header: "API",
+                    sort: (a) => a.api ?? "",
+                    render: (a) =>
+                      a.api === "assistants" ? (
+                        <Badge appearance="outline" title="Classic Assistants API — not shown in the new Foundry portal">classic</Badge>
+                      ) : a.api === "agents" ? (
+                        <Badge appearance="tint" color="brand">v{a.version ?? "?"}{a.kind && a.kind !== "prompt" ? ` · ${a.kind}` : ""}</Badge>
+                      ) : (
+                        "—"
+                      ),
+                  },
                   { key: "env", header: "Env", sort: (a) => a.metadata.environment ?? "", render: (a) => <Badge appearance="tint" color={a.metadata.environment === "prod" ? "danger" : "informative"}>{a.metadata.environment ?? "?"}</Badge> },
                   { key: "model", header: "Model", sort: (a) => a.model, render: (a) => a.model },
                   {

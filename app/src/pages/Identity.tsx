@@ -194,7 +194,7 @@ function IdsTab() {
               { key: "n", header: "Name", sort: (i) => i.displayName, render: (i) => i.displayName },
               { key: "k", header: "Kind", sort: (i) => i.kind, render: (i) => <Badge appearance="outline">{i.kind.replace(/_/g, " ")}</Badge> },
               { key: "a", header: "App id", render: (i) => <Mono>{i.appId}</Mono> },
-              { key: "b", header: "Blueprint", render: (i) => (i.blueprintId ? rows.find((r) => r.id === i.blueprintId)?.displayName ?? i.blueprintId : "—") },
+              { key: "b", header: "Blueprint", render: (i) => (i.blueprintId ? rows.find((r) => r.id === i.blueprintId || r.appId === i.blueprintId)?.displayName ?? i.blueprintId : "—") },
               { key: "s", header: "Sponsors", render: (i) => (i.sponsors.length ? i.sponsors.join(", ") : i.kind === "agent_identity" ? <StatusBadge level="warning">none</StatusBadge> : "—") },
               { key: "e", header: "Enabled", render: (i) => (i.accountEnabled ? "yes" : <StatusBadge level="warning">disabled</StatusBadge>) },
               { key: "c", header: "Created", sort: (i) => i.createdDateTime, render: (i) => (i.createdDateTime ? new Date(i.createdDateTime).toLocaleDateString() : "—") },

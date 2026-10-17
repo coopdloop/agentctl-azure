@@ -26,7 +26,7 @@ const RUN_OPS = `dynamic(["invoke_agent", "start_thread_run", "process_thread_ru
 const TOOL_OPS = `dynamic(["execute_tool", "submit_tool_outputs"])`;
 export const RUN_OP_NAMES = ["invoke_agent", "start_thread_run", "process_thread_run", "create_run", "create_thread_and_run"];
 
-const esc = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+const esc = (s?: string | null) => (s ?? "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
 
 /**
  * Normalised gen_ai spans.
@@ -57,8 +57,17 @@ let spans = AppDependencies
 let runAgent = spans
   | where isnotempty(agentAttr) or isnotempty(agentId)
   | summarize runAgentKey = take_any(coalesce(agentAttr, agentId)) by runKey;
+// The caller is often only on the client's HTTP span (no gen_ai attributes), e.g. Responses calls
+// whose gen_ai spans are emitted server-side by Foundry; look it up across the whole trace.
+let opCaller = AppDependencies
+  | where TimeGenerated > ago(${RANGE[range].ago})
+  | extend u = coalesce(tostring(Properties["enduser.id"]), UserAuthenticatedId), f = tostring(Properties["agentctl.auth_flow"])
+  | where isnotempty(u) or isnotempty(f)
+  | summarize opUser = take_anyif(u, isnotempty(u)), opFlow = take_anyif(f, isnotempty(f)) by OperationId;
 let gen = spans
   | join kind=leftouter runAgent on runKey
+  | join kind=leftouter opCaller on OperationId
+  | extend usr = coalesce(usr, opUser), flow = coalesce(flow, opFlow)
   | extend agentName = coalesce(agentAttr, agentId, runAgentKey),
            failedRun = op in (RunOps) and (Success == false or runStatus in ("failed", "cancelled", "expired"));`;
 }
@@ -154,7 +163,7 @@ AppDependencies
  * The Agent column (Entra Agent ID sign-ins, preview) is used when present.
  */
 export function identityUsageQuery(range: TimeRange, agentAppIds: string[]) {
-  const ids = `dynamic([${agentAppIds.map((a) => `"${esc(a)}"`).join(",")}])`;
+  const ids = `dynamic([${agentAppIds.filter(Boolean).map((a) => `"${esc(a)}"`).join(",")}])`;
   const a = RANGE[range].ago;
   return `let AgentApps = ${ids};
 let MiddleTier = union isfuzzy=true
@@ -205,6 +214,38 @@ export function graphActivityQuery(range: TimeRange) {
             lastSeen = max(TimeGenerated)
   by appId = AppId, authFlow, method = RequestMethod, endpoint
 | top 300 by calls desc`;
+}
+
+/**
+ * Content safety + content capture, from Foundry's server-side invoke_agent/chat spans.
+ * microsoft.foundry.content_filter.results = [{source_type, blocked, content_filter_results:{hate:{filtered,severity},...,jailbreak:{detected,filtered}}}]
+ */
+export function contentFilterQuery(range: TimeRange) {
+  return `AppDependencies
+| where TimeGenerated > ago(${RANGE[range].ago})
+| where tostring(Properties["gen_ai.operation.name"]) in ("invoke_agent", "chat")
+| extend agentName = coalesce(tostring(Properties["gen_ai.agent.name"]), tostring(Properties["gen_ai.agent.id"]))
+| extend cf = todynamic(tostring(Properties["microsoft.foundry.content_filter.results"]))
+| where isnotempty(agentName) and array_length(cf) > 0
+| mv-expand cf
+| extend source = tostring(cf.source_type), r = cf.content_filter_results
+| mv-apply category = bag_keys(r) to typeof(string) on (
+    extend filtered = tobool(r[category].filtered), detected = tobool(r[category].detected), severity = tostring(r[category].severity)
+  )
+| summarize evaluations = count(),
+            flagged = countif(filtered == true or detected == true or (isnotempty(severity) and severity != "safe")),
+            blocked = countif(filtered == true)
+  by agentName, source, category`;
+}
+
+export function contentCaptureQuery(range: TimeRange) {
+  return `AppDependencies
+| where TimeGenerated > ago(${RANGE[range].ago})
+| where tostring(Properties["gen_ai.operation.name"]) in ("invoke_agent", "chat", "execute_tool")
+| extend agentName = coalesce(tostring(Properties["gen_ai.agent.name"]), tostring(Properties["gen_ai.agent.id"]))
+| where isnotempty(agentName)
+| extend captured = isnotempty(tostring(Properties["gen_ai.input.messages"])) or isnotempty(tostring(Properties["gen_ai.output.messages"]))
+| summarize spans = count(), capturedSpans = countif(captured) by agentName`;
 }
 
 export const PING = "print ok = 1";

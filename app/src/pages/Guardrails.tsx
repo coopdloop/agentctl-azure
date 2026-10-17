@@ -23,6 +23,7 @@ import type { Finding } from "../lib/findings";
 import { HARNESS_INJECTIONS, HARNESS_TOOLS, MANDATORY_INJECTIONS } from "../lib/harnessLibrary";
 import { useFindings } from "../lib/useFindings";
 import { RiskBadge } from "../components/common";
+import { useUi } from "../state/ui";
 
 const useStyles = makeStyles({
   tabs: { marginBottom: "16px" },
@@ -178,6 +179,54 @@ function FindingsTab() {
   );
 }
 
+function ContentFilterActivity() {
+  const { range } = useUi();
+  const q = useDs("contentSafety", range);
+  return (
+    <Section title="Content filter activity" description="Live evaluations from Foundry traces (microsoft.foundry.content_filter.results): what was evaluated, flagged and blocked">
+      <QueryState q={q} label="content filter events">
+        {(cs) => {
+          const byAgent = new Map<string, { agent: string; evaluations: number; flagged: number; blocked: number; jailbreak: number; cats: Set<string> }>();
+          for (const f of cs.filters) {
+            const r = byAgent.get(f.agentName) ?? { agent: f.agentName, evaluations: 0, flagged: 0, blocked: 0, jailbreak: 0, cats: new Set<string>() };
+            r.evaluations = Math.max(r.evaluations, f.evaluations);
+            r.flagged += f.flagged;
+            r.blocked += f.blocked;
+            if (f.category === "jailbreak") r.jailbreak += f.flagged;
+            if (f.flagged) r.cats.add(f.category);
+            byAgent.set(f.agentName, r);
+          }
+          const capture = new Map(cs.capture.map((c) => [c.agentName, c]));
+          return (
+            <DataTable
+              rows={[...byAgent.values()]}
+              rowKey={(r) => r.agent}
+              empty="No content filter results in traces for this range (agents on the agents API emit them automatically)."
+              initialSort={{ key: "f", dir: "desc" }}
+              columns={[
+                { key: "a", header: "Agent", sort: (r) => r.agent, render: (r) => r.agent },
+                { key: "e", header: "Evaluated calls", numeric: true, sort: (r) => r.evaluations, render: (r) => r.evaluations },
+                { key: "f", header: "Flagged", numeric: true, sort: (r) => r.flagged, render: (r) => (r.flagged ? <StatusBadge level="warning">{r.flagged}</StatusBadge> : 0) },
+                { key: "b", header: "Blocked", numeric: true, sort: (r) => r.blocked, render: (r) => r.blocked },
+                { key: "j", header: "Jailbreak", numeric: true, sort: (r) => r.jailbreak, render: (r) => (r.jailbreak ? <StatusBadge level="serious">{r.jailbreak}</StatusBadge> : 0) },
+                { key: "c", header: "Flagged categories", render: (r) => [...r.cats].join(", ") || "—" },
+                {
+                  key: "cap",
+                  header: "Content in traces",
+                  render: (r) => {
+                    const c = capture.get(r.agent);
+                    return c?.capturedSpans ? <StatusBadge level="serious">{Math.round((c.capturedSpans / Math.max(c.spans, 1)) * 100)}% of spans</StatusBadge> : "no";
+                  },
+                },
+              ]}
+            />
+          );
+        }}
+      </QueryState>
+    </Section>
+  );
+}
+
 function RaiTab() {
   const s = useStyles();
   const rai = useDs("raiPolicies");
@@ -185,6 +234,7 @@ function RaiTab() {
   const CATS = ["hate", "sexual", "violence", "selfharm"];
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      <ContentFilterActivity />
       <Section title="RAI policies" description="Content filters per Foundry account (Microsoft.CognitiveServices/accounts/raiPolicies). Lower threshold = stricter.">
         <QueryState q={rai} label="RAI policies">
           {(pols) => (

@@ -98,7 +98,8 @@ export async function verifyBundle(files: Record<string, string>): Promise<Verif
   if (after && files["foundry/agent-definition.json"]) {
     try {
       const payload = JSON.parse(files["foundry/agent-definition.json"]);
-      const same = payload.instructions === composeInstructions(after) && payload.model === after.spec.model.deployment;
+      const def = payload.definition ?? payload; // agents API body (or legacy assistants body)
+      const same = def.instructions === composeInstructions(after) && def.model === after.spec.model.deployment;
       add("Foundry payload", same ? "pass" : "fail", same ? "instructions and model match manifest" : "payload drifted from manifest");
     } catch {
       add("Foundry payload", "fail", "invalid JSON");

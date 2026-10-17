@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Creates or updates a Foundry agent from a bundle's foundry/agent-definition.json.
+# Creates a new Foundry agent version from a bundle's foundry/agent-definition.json (agents API).
 # Requires: az (logged in as an identity with Azure AI User/Project Manager on the project), jq.
 set -euo pipefail
 
@@ -25,19 +25,11 @@ if jq -e '.. | objects | select(has("$resolve"))' <<<"$body" >/dev/null; then
   exit 1
 fi
 
-existing_id="$(az rest --method get --resource https://ai.azure.com \
-  --url "${PROJECT_ENDPOINT}/assistants?api-version=${API}&limit=100" \
-  --query "data[?name=='${AGENT_NAME}'].id | [0]" -o tsv)"
-
 tmp="$(mktemp)"; trap 'rm -f "$tmp"' EXIT
 printf '%s' "$body" > "$tmp"
 
-if [[ -n "$existing_id" ]]; then
-  echo "Updating agent ${AGENT_NAME} (${existing_id})"
-  az rest --method post --resource https://ai.azure.com \
-    --url "${PROJECT_ENDPOINT}/assistants/${existing_id}?api-version=${API}" --body @"$tmp" -o none
-else
-  echo "Creating agent ${AGENT_NAME}"
-  az rest --method post --resource https://ai.azure.com \
-    --url "${PROJECT_ENDPOINT}/assistants?api-version=${API}" --body @"$tmp" -o none
-fi
+# Agents API: every apply creates a new immutable version (the agent is created on first version).
+echo "Creating new version of agent ${AGENT_NAME}"
+az rest --method post --resource https://ai.azure.com \
+  --url "${PROJECT_ENDPOINT}/agents/${AGENT_NAME}/versions?api-version=${API}" --body @"$tmp" \
+  --query "{name:name,version:version,status:status}" -o json

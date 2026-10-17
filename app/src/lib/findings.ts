@@ -2,7 +2,7 @@
 // request ("fix") on the harness page, which is how the platform applies extra guardrails.
 
 import type { StatusLevel } from "../components/common";
-import type { Agent, AgentIdentity, AzureRoleAssignment, ModelDeployment, PermissionGrant, PolicyState, RaiPolicy } from "../api/types";
+import type { Agent, AgentIdentity, AzureRoleAssignment, ContentSafety, ModelDeployment, PermissionGrant, PolicyState, RaiPolicy } from "../api/types";
 import { MANDATORY_INJECTIONS } from "./harnessLibrary";
 import { extractInjections } from "./manifestDefaults";
 
@@ -11,7 +11,7 @@ export type FixKind = "inject-mandatory" | "require-approval" | "strict-rai" | "
 export interface Finding {
   id: string;
   severity: Exclude<StatusLevel, "good" | "info">;
-  category: "Harness" | "Tools" | "Content safety" | "Identity" | "Compliance" | "Ownership";
+  category: "Harness" | "Tools" | "Content safety" | "Data protection" | "Identity" | "Compliance" | "Ownership";
   title: string;
   resource: string;
   detail: string;
@@ -30,6 +30,7 @@ export function computeFindings(input: {
   roles: AzureRoleAssignment[];
   identities: AgentIdentity[];
   policy: PolicyState[];
+  contentSafety?: ContentSafety;
 }): Finding[] {
   const out: Finding[] = [];
   const ref = (a: Agent) => ({ project: a.project, id: a.id, name: a.name });
@@ -132,6 +133,36 @@ export function computeFindings(input: {
       remediation: "Assign a sponsor in Entra (or update metadata.owners in the manifest).",
       fix: "none",
       agent: matchAgent(input.agents, i.displayName),
+    });
+  }
+  for (const c of input.contentSafety?.capture ?? []) {
+    if (!c.capturedSpans) continue;
+    const a = input.agents.find((x) => x.name === c.agentName);
+    const cls = a?.metadata.dataClassification ?? "internal";
+    out.push({
+      id: `capture-${c.agentName}`,
+      severity: cls === "confidential" || cls === "highly_confidential" ? "serious" : "warning",
+      category: "Data protection",
+      title: "Prompt and response content stored in traces",
+      resource: c.agentName,
+      detail: `${c.capturedSpans} of ${c.spans} spans include gen_ai.input/output.messages (system prompt and user input) in Log Analytics; agent classification: ${cls}.`,
+      remediation: "Turn off message content recording in the Foundry project's tracing settings, or restrict and shorten workspace retention for this data.",
+      fix: "none",
+      agent: a ? { project: a.project, id: a.id, name: a.name } : undefined,
+    });
+  }
+  for (const f of input.contentSafety?.filters ?? []) {
+    if (f.category !== "jailbreak" || !f.flagged) continue;
+    out.push({
+      id: `jailbreak-${f.agentName}-${f.source}`,
+      severity: "serious",
+      category: "Content safety",
+      title: "Jailbreak attempts detected",
+      resource: f.agentName,
+      detail: `${f.flagged} of ${f.evaluations} ${f.source} evaluations flagged; ${f.blocked} blocked.`,
+      remediation: "Review the flagged runs in Activity; consider stricter RAI policy or limiting who can call the agent.",
+      fix: "strict-rai",
+      agent: matchAgent(input.agents, f.agentName),
     });
   }
   const nonCompliant = input.policy.filter((p) => p.complianceState === "NonCompliant");

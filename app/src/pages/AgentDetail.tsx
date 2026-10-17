@@ -132,6 +132,14 @@ function OverviewTab({ agent, range }: { agent: AgentT; range: TimeRange }) {
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <Section title="Definition">
             <div className={s.kv}>
+              <span className={s.muted}>Foundry API</span>
+              <span>{agent.api === "agents" ? `agents · version ${agent.version ?? "?"} (${agent.kind ?? "prompt"})` : agent.api === "assistants" ? "classic assistants" : "—"}</span>
+              {agent.agentIdentityId && (
+                <>
+                  <span className={s.muted}>Agent identity</span>
+                  <span style={{ fontFamily: tokens.fontFamilyMonospace, fontSize: 12 }}>{agent.agentIdentityId}</span>
+                </>
+              )}
               <span className={s.muted}>Model deployment</span>
               <span>{agent.model}</span>
               <span className={s.muted}>Temperature / top_p</span>

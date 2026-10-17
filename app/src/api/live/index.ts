@@ -7,6 +7,7 @@ import type {
   AgentRun,
   AgentStats,
   AuthFlowObserved,
+  ContentSafety,
   DataSource,
   GraphActivity,
   IdentityUsage,
@@ -50,8 +51,12 @@ export class LiveDataSource implements DataSource {
 
   listAgents = memo(async () => {
     const projects = await this.listProjects();
-    const perProject = await Promise.all(projects.map((p) => settle(listProjectAgents(p), [] as Agent[], (e) => console.warn(`agents ${p.name}`, e))));
-    return perProject.flat();
+    const results = await Promise.allSettled(projects.map((p) => listProjectAgents(p)));
+    const failed = results.filter((r): r is PromiseRejectedResult => r.status === "rejected");
+    // If nothing could be read, surface the error (e.g. consent required) instead of "0 agents".
+    if (projects.length && failed.length === projects.length) throw failed[0].reason;
+    failed.forEach((f) => console.warn("agents: project failed", f.reason));
+    return results.flatMap((r) => (r.status === "fulfilled" ? r.value : []));
   });
 
   async getAgent(project: string, id: string) {
@@ -60,11 +65,17 @@ export class LiveDataSource implements DataSource {
 
   /** Object ids + app ids of everything we consider an agent principal. */
   private agentPrincipals = memo(async () => {
-    const [identities, projects] = await Promise.all([settle(this.agentIdentities(), [] as AgentIdentity[]), this.listProjects()]);
+    const [identities, projects, agents] = await Promise.all([
+      settle(this.agentIdentities(), [] as AgentIdentity[]),
+      this.listProjects(),
+      settle(this.listAgents(), [] as Agent[]),
+    ]);
     const projectMis = projects.map((p) => p.principalId).filter(Boolean) as string[];
-    const resolved = await settle(graph.resolveObjects(projectMis), new Map());
-    const spIds = new Set([...identities.filter((i) => i.kind !== "agent_blueprint").map((i) => i.id), ...projectMis]);
-    const appIds = [...identities.map((i) => i.appId), ...[...resolved.values()].map((o) => o.appId).filter(Boolean)] as string[];
+    // Agents API: each agent version runs as its own Entra Agent ID instance identity.
+    const instanceIds = agents.map((a) => a.agentIdentityId).filter(Boolean) as string[];
+    const resolved = await settle(graph.resolveObjects([...projectMis, ...instanceIds]), new Map());
+    const spIds = new Set([...identities.filter((i) => i.kind !== "agent_blueprint").map((i) => i.id), ...projectMis, ...instanceIds]);
+    const appIds = [...identities.map((i) => i.appId), ...[...resolved.values()].map((o) => o.appId)].filter((x): x is string => Boolean(x));
     return { spIds, appIds: [...new Set(appIds)] };
   }, 300_000);
 
@@ -210,6 +221,18 @@ export class LiveDataSource implements DataSource {
   }
 
   raiPolicies = memo(() => arm.listRaiPolicies());
+
+  async contentSafety(range: TimeRange): Promise<ContentSafety> {
+    const [filters, capture, name] = await Promise.all([
+      kql<ContentSafety["filters"][number]>(Q.contentFilterQuery(range), Q.RANGE[range].timespan),
+      kql<ContentSafety["capture"][number]>(Q.contentCaptureQuery(range), Q.RANGE[range].timespan),
+      this.agentNamer(),
+    ]);
+    return {
+      filters: filters.map((f) => ({ ...f, agentName: name(f.agentName) })),
+      capture: capture.map((c) => ({ ...c, agentName: name(c.agentName) })),
+    };
+  }
   policyStates = memo(() => arm.listPolicyStates(), 300_000);
 
   async manifestFor(agent: Agent) {

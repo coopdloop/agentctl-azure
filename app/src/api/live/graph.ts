@@ -45,7 +45,7 @@ export async function listAgentIdentities(): Promise<AgentIdentity[]> {
     (async () => {
       const ids = await fetchAllPages<{
         id: string;
-        appId: string;
+        appId: string | null;
         displayName: string;
         agentIdentityBlueprintId?: string;
         createdDateTime?: string;
@@ -62,7 +62,8 @@ export async function listAgentIdentities(): Promise<AgentIdentity[]> {
       return [
         ...ids.map<AgentIdentity>((i) => ({
           id: i.id,
-          appId: i.appId,
+          // The list endpoint returns appId: null for agent identities; their appId equals the object id.
+          appId: i.appId ?? i.id,
           displayName: i.displayName,
           kind: "agent_identity",
           blueprintId: i.agentIdentityBlueprintId,

@@ -48,7 +48,14 @@ export interface Agent {
   metadata: Record<string, string>;
   /** Owner / identity hints pulled from agent metadata or Entra Agent ID. */
   owner?: string;
+  /** Entra Agent ID instance identity (principal object id) — set by the agents API. */
   agentIdentityId?: string;
+  /** Which Foundry API the agent lives in: current versioned "agents" or classic "assistants". */
+  api?: "agents" | "assistants";
+  version?: string;
+  kind?: string;
+  state?: string;
+  blueprintAppId?: string;
 }
 
 export interface AgentStats {
@@ -195,6 +202,13 @@ export interface Overview {
   topTools: { tool: string; calls: number }[];
 }
 
+export interface ContentSafety {
+  /** Content filter evaluations per agent / prompt-or-completion / category. */
+  filters: { agentName: string; source: string; category: string; evaluations: number; flagged: number; blocked: number }[];
+  /** Spans that recorded prompt/response message content. */
+  capture: { agentName: string; spans: number; capturedSpans: number }[];
+}
+
 export interface SourceHealth {
   source: string;
   ok: boolean;
@@ -219,6 +233,7 @@ export interface DataSource {
   agentIdentities(): Promise<AgentIdentity[]>;
   roleAssignments(): Promise<AzureRoleAssignment[]>;
   raiPolicies(): Promise<RaiPolicy[]>;
+  contentSafety(range: TimeRange): Promise<ContentSafety>;
   policyStates(): Promise<PolicyState[]>;
   /** The current deployed state expressed as a manifest — the "before" for change requests. */
   manifestFor(agent: Agent): Promise<AgentManifest>;

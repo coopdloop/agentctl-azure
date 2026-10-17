@@ -5,6 +5,7 @@ locals {
   graph_app_id = "00000003-0000-0000-c000-000000000000"
   arm_app_id   = "797f4846-ba00-4fd7-ba43-dac1f8f63013" # Azure Service Management
   la_app_id    = "ca7f3f0b-7d91-482c-8e09-c5d840d0eac5" # Log Analytics API
+  ai_app_id    = "18a66f5f-dbdf-4c17-9dd7-1634712a9cbe" # Azure Machine Learning Services (audience https://ai.azure.com, Foundry data plane)
 
   app_roles = {
     reader   = { value = "AgentCtl.Reader", display = "Reader", description = "View agent activity, identity usage and guardrail posture." }
@@ -26,6 +27,10 @@ data "azuread_service_principal" "arm" {
 
 data "azuread_service_principal" "log_analytics" {
   client_id = local.la_app_id
+}
+
+data "azuread_service_principal" "foundry" {
+  client_id = local.ai_app_id
 }
 
 locals {
@@ -87,8 +92,13 @@ resource "azuread_application" "this" {
     }
   }
 
-  # The Foundry data-plane scope (https://ai.azure.com/.default) is consented dynamically at
-  # first use; add it here too if your tenant requires pre-declared permissions.
+  required_resource_access {
+    resource_app_id = local.ai_app_id
+    resource_access {
+      id   = data.azuread_service_principal.foundry.oauth2_permission_scope_ids["user_impersonation"]
+      type = "Scope"
+    }
+  }
 
   lifecycle {
     ignore_changes = [owners]
@@ -144,4 +154,11 @@ resource "azuread_service_principal_delegated_permission_grant" "log_analytics" 
   service_principal_object_id          = azuread_service_principal.this.object_id
   resource_service_principal_object_id = data.azuread_service_principal.log_analytics.object_id
   claim_values                         = ["Data.Read"]
+}
+
+resource "azuread_service_principal_delegated_permission_grant" "foundry" {
+  count                                = var.grant_admin_consent ? 1 : 0
+  service_principal_object_id          = azuread_service_principal.this.object_id
+  resource_service_principal_object_id = data.azuread_service_principal.foundry.object_id
+  claim_values                         = ["user_impersonation"]
 }

@@ -180,3 +180,11 @@ describe("rai policy naming", () => {
     for (const a of AGENTS) expect(agentToManifest(a, DEPLOYMENTS, SUB).spec.guardrails.raiPolicy.name.startsWith("Microsoft.")).toBe(false);
   });
 });
+
+describe("kql", () => {
+  it("identity usage query tolerates missing app ids (Agent ID list returns appId: null)", async () => {
+    const { identityUsageQuery } = await import("../api/live/kql");
+    const q = identityUsageQuery("24h", ["abc", undefined as unknown as string, ""]);
+    expect(q).toContain('dynamic(["abc"])');
+  });
+});

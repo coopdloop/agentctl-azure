@@ -6,6 +6,7 @@ import type {
   AgentRun,
   AgentStats,
   AuthFlowObserved,
+  ContentSafety,
   DataSource,
   GraphActivity,
   IdentityUsage,
@@ -305,6 +306,28 @@ export class MockDataSource implements DataSource {
   agentIdentities = () => delay(AGENT_IDENTITIES);
   roleAssignments = () => delay(ROLE_ASSIGNMENTS);
   raiPolicies = () => delay(RAI_POLICIES);
+
+  async contentSafety(range: TimeRange): Promise<ContentSafety> {
+    const runs = inRange(range);
+    const rnd = prng(11);
+    const cats = ["hate", "sexual", "violence", "self_harm", "jailbreak"];
+    const filters: ContentSafety["filters"] = [];
+    for (const a of AGENTS) {
+      const n = runs.filter((r) => r.agentName === a.name).length;
+      if (!n) continue;
+      for (const source of ["prompt", "completion"])
+        for (const category of source === "prompt" ? cats : cats.slice(0, 4)) {
+          const flagged = Math.round(n * (category === "jailbreak" ? 0.012 : 0.004) * (a.name === "browser-ops-bot" ? 6 : 1) * rnd() * 2);
+          filters.push({ agentName: a.name, source, category, evaluations: n, flagged, blocked: Math.round(flagged * 0.6) });
+        }
+    }
+    // Content capture deliberately on for two agents to exercise the finding.
+    const capture = AGENTS.map((a) => {
+      const spans = runs.filter((r) => r.agentName === a.name).length * 3;
+      return { agentName: a.name, spans, capturedSpans: ["hr-benefits-assistant", "browser-ops-bot"].includes(a.name) ? spans : 0 };
+    });
+    return delay({ filters, capture });
+  }
   policyStates = () => delay(POLICY_STATES);
 
   async manifestFor(agent: Agent) {

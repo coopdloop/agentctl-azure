@@ -174,7 +174,7 @@ ${cr.spec.changes.map((c) => `- **${c.riskTier}** \`${c.op}\` — ${c.summary}`)
 | \`change-request.yaml\` | Risk, approvals and change list (validates against \`schema/change-request.schema.json\`) |
 | \`diff/agent.yaml.diff\` | Unified diff from the currently deployed state |
 | \`instructions/effective.md\` | Exact prompt deployed: harness injections composed around the owner's instructions |
-| \`foundry/agent-definition.json\` | Foundry Agent Service payload (\`POST {project}/assistants?api-version=v1\`) |
+| \`foundry/agent-definition.json\` | Foundry agents API body (\`POST {project}/agents/{name}/versions?api-version=v1\`): applying creates a new agent version |
 | \`terraform/main.tf\` | Module call for identity, RBAC and RAI policy |
 | \`approvals/CODEOWNERS\` | Reviewer routing for the pipeline |
 | \`checksums.sha256\` | Integrity of every file above |
@@ -185,7 +185,7 @@ ${cr.spec.changes.map((c) => `- **${c.riskTier}** \`${c.op}\` — ${c.summary}`)
 2. Check \`spec.baseManifestSha256\` still matches the deployed state (detects drift / concurrent changes).
 3. Enforce approvals from \`spec.approvals\` (CODEOWNERS / environment protection rules).
 4. \`terraform plan\` → approval → \`apply\` (identity, RBAC, RAI policy).
-5. Resolve \`\${...}\` placeholders and apply \`foundry/agent-definition.json\` to the project endpoint.
+5. Resolve \`\${...}\` placeholders and POST \`foundry/agent-definition.json\` to \`{project}/agents/{name}/versions\` (new immutable version).
 6. Record \`agentctl.manifest_sha256\` in agent metadata (already in the payload) for drift detection in agentctl.
 `;
 }
