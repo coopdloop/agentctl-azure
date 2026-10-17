@@ -17,7 +17,8 @@
     "pretest": "npm run gen",
     "test": "vitest run",
     "start": "node server/server.mjs",
-    "package": "npm run build && node scripts/package-app.mjs"
+    "package": "npm run build && node scripts/package-app.mjs",
+    "build:cli": "npm run gen && node scripts/build-cli.mjs"
   },
   "devDependencies": {
     "@azure/msal-browser": "^4.4.0",

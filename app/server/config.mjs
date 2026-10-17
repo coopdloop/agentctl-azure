@@ -43,7 +43,7 @@ export function buildRuntimeConfig(env = process.env) {
     gitops: {
       repo: env.AGENTCTL_GITOPS_REPO || "",
       basePath: env.AGENTCTL_GITOPS_BASE_PATH || "agents",
-      agentModuleSource: env.AGENTCTL_AGENT_MODULE_SOURCE || "../../modules/foundry-agent",
+      agentModuleSource: env.AGENTCTL_AGENT_MODULE_SOURCE || "../../../modules/foundry-agent",
     },
     // JSON: {"unscopedDefault":"all"|"none","scopes":[{"name","groups":[oid],"projects":["account/project"],"agents":["glob"]}]}
     access: parseJson(env.AGENTCTL_ACCESS_SCOPES, { scopes: [], unscopedDefault: "all" }),

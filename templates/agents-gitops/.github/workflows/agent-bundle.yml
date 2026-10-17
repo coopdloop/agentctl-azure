@@ -1,0 +1,177 @@
+# PR gate for agent bundles. Make "agent-bundle / gate" a required status check on main.
+#
+# Security model
+#  - pull_request_target runs this workflow and its scripts from the BASE branch. The PR head is
+#    checked out into ./pr as data only: nothing from it is executed (the verifier parses YAML/JSON).
+#  - pull_request_review re-evaluates the gate when approvals change. That event uses the PR's copy
+#    of this file, so .github/ is owned by platform-security in CODEOWNERS and the gate refuses PRs
+#    that mix platform files with agent bundles.
+#  - Fork PRs are rejected; bundle authors push branches to this repo.
+#  - Third-party actions: pin to full commit SHAs before production use (Dependabot keeps them fresh).
+name: agent-bundle
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+    branches: [main]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions: {}
+
+concurrency:
+  group: agent-bundle-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      agents: ${{ steps.changed.outputs.agents }}
+      platform: ${{ steps.changed.outputs.platform }}
+    steps:
+      - name: Reject fork PRs
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        run: |
+          echo "::error::Bundles must be pushed to a branch of ${{ github.repository }}, not a fork."
+          exit 1
+
+      - name: Checkout base (trusted scripts and verifier)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          path: base
+          persist-credentials: false
+
+      - name: Checkout PR head (data only)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: pr
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check verifier integrity
+        working-directory: base/tools
+        run: sha256sum -c agentctl-verify.mjs.sha256
+
+      - name: Find changed agents
+        id: changed
+        run: bash base/.github/scripts/changed-agents.sh "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" pr
+
+      - name: Enforce PR shape
+        env:
+          AGENTS: ${{ steps.changed.outputs.agents }}
+          DELETED: ${{ steps.changed.outputs.deleted }}
+          PLATFORM: ${{ steps.changed.outputs.platform }}
+        run: |
+          if [[ "$DELETED" != "[]" ]]; then
+            echo "::error::Agent folders were removed ($DELETED). Decommissioning is a separate, platform-reviewed change."
+            exit 1
+          fi
+          if [[ "$PLATFORM" == "true" && "$AGENTS" != "[]" ]]; then
+            echo "::error::This PR changes agent bundles and platform files together. Split it: platform changes need their own platform-security review."
+            exit 1
+          fi
+          echo "agents=$AGENTS platform=$PLATFORM"
+
+      - name: Verify bundles
+        if: steps.changed.outputs.agents != '[]'
+        working-directory: pr
+        env:
+          AGENTS: ${{ steps.changed.outputs.agents }}
+        run: |
+          mapfile -t dirs < <(jq -r '.[]' <<<"$AGENTS")
+          node ../base/tools/agentctl-verify.mjs --policy ../base/platform/policy.json --json ../verify.json "${dirs[@]}"
+
+      - name: Upload report
+        if: always() && steps.changed.outputs.agents != '[]'
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-${{ github.event.pull_request.head.sha }}
+          path: verify.json
+          if-no-files-found: ignore
+          retention-days: 30
+
+  drift:
+    needs: verify
+    if: needs.verify.outputs.agents != '[]'
+    runs-on: ubuntu-latest
+    # Federated credential subject: repo:<org>/<repo>:environment:agents-read (Foundry User, read only).
+    environment: agents-read
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: verify-${{ github.event.pull_request.head.sha }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_READ_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+      - name: Compare declared base with live Foundry
+        run: bash .github/scripts/drift-check.sh verify.json
+
+  gate:
+    needs: [verify, drift]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Upstream results
+        env:
+          VERIFY: ${{ needs.verify.result }}
+          DRIFT: ${{ needs.drift.result }}
+          AGENTS: ${{ needs.verify.outputs.agents }}
+        run: |
+          [[ "$VERIFY" == "success" ]] || { echo "::error::verify: $VERIFY"; exit 1; }
+          if [[ "$AGENTS" != "[]" && "$DRIFT" != "success" ]]; then echo "::error::drift: $DRIFT"; exit 1; fi
+          if [[ "$AGENTS" == "[]" ]]; then echo "No agent bundles changed; CODEOWNERS review applies."; fi
+
+      - uses: actions/checkout@v4
+        if: needs.verify.outputs.agents != '[]'
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - uses: actions/download-artifact@v4
+        if: needs.verify.outputs.agents != '[]'
+        with:
+          name: verify-${{ github.event.pull_request.head.sha }}
+
+      # GITHUB_TOKEN cannot read team membership; a GitHub App with Members: read can.
+      - name: Team-read token
+        if: needs.verify.outputs.agents != '[]'
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GATE_APP_ID }}
+          private-key: ${{ secrets.GATE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+
+      - uses: actions/setup-node@v4
+        if: needs.verify.outputs.agents != '[]'
+        with:
+          node-version: 22
+
+      - name: Check approvals
+        if: needs.verify.outputs.agents != '[]'
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node .github/scripts/approval-gate.mjs verify.json platform/approvers.json

@@ -1,0 +1,6 @@
+{
+  "$comment": "Approver groups per risk tier. MUST match the app's AGENTCTL_APPROVERS_* settings; the verifier recomputes approvals with this file, so bundles cannot understate them.",
+  "read": ["agent-owners"],
+  "write": ["agent-owners", "platform-security"],
+  "privileged": ["agent-owners", "platform-security", "identity-admins"]
+}

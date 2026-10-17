@@ -237,7 +237,7 @@ variable "gitops" {
   type = object({
     repo                = optional(string, "")
     base_path           = optional(string, "agents")
-    agent_module_source = optional(string, "../../modules/foundry-agent")
+    agent_module_source = optional(string, "../../../modules/foundry-agent")
   })
   default = {}
 }

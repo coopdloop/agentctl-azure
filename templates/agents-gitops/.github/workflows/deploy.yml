@@ -1,0 +1,148 @@
+# Applies merged agent bundles: re-verify, drift check, terraform plan/apply (which creates the new
+# Foundry agent version via the module's apply-agent.sh), then confirm the live manifest hash.
+# GitHub environments agents-dev / agents-test / agents-prod hold the deploy identity per
+# environment; give agents-prod required reviewers and restrict it to main.
+name: deploy-agents
+
+on:
+  push:
+    branches: [main]
+    paths: ["agents/**"]
+  workflow_dispatch:
+    inputs:
+      agent:
+        description: "Agent folder name to (re)apply, e.g. hr-benefits"
+        required: true
+
+permissions: {}
+
+jobs:
+  plan-matrix:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Check verifier integrity
+        working-directory: tools
+        run: sha256sum -c agentctl-verify.mjs.sha256
+      - name: Changed agents
+        id: changed
+        env:
+          BEFORE: ${{ github.event.before }}
+          INPUT_AGENT: ${{ inputs.agent }}
+        run: |
+          if [[ -n "$INPUT_AGENT" ]]; then
+            [[ "$INPUT_AGENT" =~ ^[a-z][a-z0-9-]{2,62}$ && -d "agents/$INPUT_AGENT" ]] || { echo "::error::no such agent"; exit 1; }
+            echo "agents=[\"agents/$INPUT_AGENT\"]" >>"$GITHUB_OUTPUT"
+          else
+            base="$BEFORE"; [[ "$base" =~ ^0+$ ]] && base="$(git rev-parse HEAD~1)"
+            bash .github/scripts/changed-agents.sh "$base" "$GITHUB_SHA"
+          fi
+      - name: Re-verify (defence in depth)
+        if: steps.changed.outputs.agents != '[]'
+        env:
+          AGENTS: ${{ steps.changed.outputs.agents }}
+        run: |
+          mapfile -t dirs < <(jq -r '.[]' <<<"$AGENTS")
+          node tools/agentctl-verify.mjs --policy platform/policy.json --json verify.json "${dirs[@]}"
+      - name: Build matrix
+        id: matrix
+        run: |
+          if [[ -f verify.json ]]; then
+            echo "matrix=$(jq -c '[.[] | {dir, agent, environment, subscription: .foundry.subscriptionId}]' verify.json)" >>"$GITHUB_OUTPUT"
+          else
+            echo "matrix=[]" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: actions/upload-artifact@v4
+        if: hashFiles('verify.json') != ''
+        with:
+          name: verify-${{ github.sha }}
+          path: verify.json
+
+  deploy:
+    needs: plan-matrix
+    if: needs.plan-matrix.outputs.matrix != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include: ${{ fromJson(needs.plan-matrix.outputs.matrix) }}
+    environment: agents-${{ matrix.environment }}
+    concurrency:
+      group: deploy-${{ matrix.agent }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ARM_USE_OIDC: "true"
+      ARM_CLIENT_ID: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
+      ARM_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ matrix.subscription }}
+      TF_IN_AUTOMATION: "true"
+      TF_INPUT: "false"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: verify-${{ github.sha }}
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_DEPLOY_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ matrix.subscription }}
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Drift check
+        run: |
+          jq --arg d "${{ matrix.dir }}" '[.[] | select(.dir == $d)]' verify.json > one.json
+          bash .github/scripts/drift-check.sh one.json
+
+      - name: Terraform init
+        working-directory: ${{ matrix.dir }}/terraform
+        run: |
+          cp ../../../platform/terraform/providers.tf ./zz_platform_providers.tf
+          terraform init \
+            -backend-config=../../../platform/terraform/backend-${{ matrix.environment }}.hcl \
+            -backend-config="key=agents/${{ matrix.agent }}.tfstate"
+
+      - name: Terraform plan
+        working-directory: ${{ matrix.dir }}/terraform
+        run: |
+          terraform plan -out=tfplan \
+            -var-file=../../../platform/terraform/${{ matrix.environment }}.tfvars \
+            -var="target_subscription_id=${{ matrix.subscription }}"
+          terraform show -no-color tfplan > plan.txt
+          { echo "### Plan: ${{ matrix.agent }}"; echo '```'; tail -n 60 plan.txt; echo '```'; } >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Terraform apply
+        working-directory: ${{ matrix.dir }}/terraform
+        run: terraform apply -auto-approve tfplan
+
+      - name: Confirm live version
+        run: |
+          row=$(jq -c '.[0]' one.json)
+          endpoint="https://$(jq -r .foundry.account <<<"$row").services.ai.azure.com/api/projects/$(jq -r .foundry.project <<<"$row")"
+          want=$(jq -r .changeRequest.manifestSha256 <<<"$row")
+          live=$(az rest --method get --resource https://ai.azure.com --url "${endpoint}/agents/${{ matrix.agent }}?api-version=v1")
+          got=$(jq -r '.versions.latest.metadata["agentctl.manifest_sha256"] // ""' <<<"$live")
+          ver=$(jq -r '.versions.latest.version' <<<"$live")
+          if [[ "$got" != "$want" ]]; then
+            echo "::error::live ${{ matrix.agent }} v${ver} has manifest ${got:0:12}, expected ${want:0:12} (is apply_agent_definition enabled for ${{ matrix.environment }}?)"
+            exit 1
+          fi
+          echo "✅ ${{ matrix.agent }} v${ver} live with manifest ${want:0:12}" >>"$GITHUB_STEP_SUMMARY"

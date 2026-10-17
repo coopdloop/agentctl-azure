@@ -1,0 +1,12 @@
+# Platform files: the gate's own code and policy. Require code-owner review in branch protection.
+*                        @YOUR-ORG/agent-platform
+/.github/                @YOUR-ORG/agent-platform-security
+/platform/               @YOUR-ORG/agent-platform-security
+/tools/                  @YOUR-ORG/agent-platform-security
+/modules/                @YOUR-ORG/agent-platform
+
+# Agent bundles: the "agent-bundle / gate" check enforces the per-change approvers computed from
+# the bundle (owners, platform-security, identity-admins). Optionally add per-agent owner lines
+# from a bundle's approvals/CODEOWNERS, e.g.:
+# /agents/hr-benefits/   @YOUR-ORG/hr-systems
+/agents/                 @YOUR-ORG/agent-platform

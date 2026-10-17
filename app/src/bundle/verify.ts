@@ -20,7 +20,7 @@ export interface Verification {
   cr?: ChangeRequest;
   after?: AgentManifest;
   before?: AgentManifest | null;
-  recomputed?: { tier: string; score: number; approvers: string[] };
+  recomputed?: { tier: string; score: number; approvers: string[]; minApprovers: number };
   ok: boolean;
 }
 
@@ -86,13 +86,15 @@ export async function verifyBundle(files: Record<string, string>): Promise<Verif
     const changes = computeChanges(before, after);
     const risk = assessRisk(changes, after);
     const approvals = requiredApprovals(changes, risk);
-    recomputed = { tier: risk.tier, score: risk.score, approvers: approvals.required.map((a) => a.group) };
+    recomputed = { tier: risk.tier, score: risk.score, approvers: approvals.required.map((a) => a.group), minApprovers: approvals.minApprovers };
     const under = tierRank(cr.spec.risk.tier) < tierRank(risk.tier);
     add("Declared risk", under ? "fail" : "pass", under ? `declared ${cr.spec.risk.tier}, recomputed ${risk.tier}` : `declared ${cr.spec.risk.tier} ≥ recomputed ${risk.tier}`);
     const declared = new Set(cr.spec.approvals.required.map((a) => a.group));
     const expected = cr.spec.proposal ? [...recomputed.approvers, ...after.metadata.owners] : recomputed.approvers;
     const missing = expected.filter((g) => !declared.has(g));
     add("Approvers", missing.length ? "fail" : "pass", missing.length ? `missing: ${missing.join(", ")}` : `${declared.size} group(s), min ${cr.spec.approvals.minApprovers}`);
+    if (cr.spec.approvals.minApprovers < approvals.minApprovers)
+      add("Minimum approvers", "fail", `declared ${cr.spec.approvals.minApprovers}, policy requires ${approvals.minApprovers}`);
   }
 
   // 7. payload consistent with manifest

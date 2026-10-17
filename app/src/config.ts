@@ -41,7 +41,7 @@ const defaults: RuntimeConfig = {
     foundryApiVersion: "v1",
     foundryScope: "https://ai.azure.com/.default",
   },
-  gitops: { repo: "", basePath: "agents", agentModuleSource: "../../modules/foundry-agent" },
+  gitops: { repo: "", basePath: "agents", agentModuleSource: "../../../modules/foundry-agent" },
   access: { scopes: [], unscopedDefault: "all" },
   approvals: {
     read: ["agent-owners"],
@@ -50,7 +50,8 @@ const defaults: RuntimeConfig = {
   },
 };
 
-const injected = (typeof window !== "undefined" && window.__AGENTCTL_CONFIG__) || {};
+// Browser: set by /config.js. Node (agentctl-verify CLI): set on globalThis before import.
+const injected = (globalThis as { __AGENTCTL_CONFIG__?: Partial<RuntimeConfig> }).__AGENTCTL_CONFIG__ ?? {};
 
 export const config: RuntimeConfig = {
   ...defaults,

@@ -1,0 +1,12 @@
+{
+  "$comment": "Maps agentctl approver groups (AGENTCTL_APPROVERS_* in the app) and agent owners (manifest metadata.owners) to GitHub. Unmapped names fail the approval gate. Changes need platform-security review (CODEOWNERS).",
+  "ownersGroup": "agent-owners",
+  "teams": {
+    "platform-security": "agent-platform-security",
+    "identity-admins": "identity-admins",
+    "hr-systems": "hr-systems"
+  },
+  "users": {
+    "owner@contoso.example": "owner-github-login"
+  }
+}

@@ -5,6 +5,7 @@ A frontend-only control plane for Azure AI Foundry agents. It shows agent activi
 - **Spec:** [`docs/SPEC.md`](docs/SPEC.md)
 - **App:** [`app/`](app): React + Vite + Fluent UI v9, MSAL, mock/live data sources
 - **Infra:** [`infra/`](infra): minimal `main.tf` + `terraform.tfvars.example`, calling [`modules/agentctl`](infra/modules/agentctl); bundles call [`modules/foundry-agent`](infra/modules/foundry-agent)
+- **GitOps repo template:** [`templates/agents-gitops/`](templates/agents-gitops): PR gate (verify, live drift check, approval gate) and deploy workflow for GitHub Actions. Create the repo with `scripts/init-gitops-repo.sh ../agents-gitops`
 
 ## Run locally (mock data, no Azure needed)
 
@@ -64,7 +65,9 @@ infra/
   main.tf, variables.tf, terraform.tfvars.example
   modules/agentctl/        App Service, Entra app + roles, LAW/App Insights, Foundry (optional), diagnostics, RBAC
   modules/foundry-agent/   per-agent identity, RBAC, RAI policy, optional data-plane apply
-scripts/                   deploy-app.sh, local-env-from-tf.sh
+app/cli/agentctl-verify.ts  bundle verifier CLI for the pipeline (npm run build:cli → artifacts/)
+templates/agents-gitops/   GitOps repo template (workflows, approval mapping, platform Terraform)
+scripts/                   deploy-app.sh, local-env-from-tf.sh, init-gitops-repo.sh
 docs/SPEC.md
 ```
 
