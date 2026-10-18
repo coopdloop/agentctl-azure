@@ -1,20 +1,42 @@
+# ── dependencies / build output ──────────────────────────────────────────────
 node_modules/
 dist/
 *.tsbuildinfo
-.env.local
-.env.*.local
-# terraform
+/artifacts/
+/site/
+.venv/
+__pycache__/
+.DS_Store
+
+# ── secrets and local environment: never commit ──────────────────────────────
+.env
+.env.*
+!.env.example
+!**/.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+*.publishsettings
+local.settings.json
+.azure/
+*.secrets
+secrets.*
+
+# ── terraform: state and real variable files hold secrets / tenant ids ───────
 **/.terraform/*
 *.tfstate
 *.tfstate.*
 *.tfvars
+*.tfvars.json
 !*.tfvars.example
-.terraform.lock.hcl.bak
-crash.log
-# build artefacts
-/artifacts/
-.DS_Store
+# agents-gitops template inputs are placeholders only (no secrets)
+!templates/agents-gitops/platform/terraform/*.tfvars
 tfplan
 *.tfplan
-.venv/
-__pycache__/
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+.terraform.lock.hcl.bak
