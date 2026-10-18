@@ -342,6 +342,20 @@ variable "app_service" {
   default = {}
 }
 
+variable "static_web_app" {
+  description = "Host agentctl on Azure Static Web Apps instead of (or as well as) App Service. Free tier needs no App Service quota."
+  type = object({
+    enabled  = optional(bool, false)
+    sku_tier = optional(string, "Free")    # Free | Standard
+    location = optional(string, "eastus2") # Static Web Apps regions: westus2, centralus, eastus2, westeurope, eastasia
+  })
+  default = {}
+  validation {
+    condition     = contains(["Free", "Standard"], var.static_web_app.sku_tier)
+    error_message = "static_web_app.sku_tier must be Free or Standard."
+  }
+}
+
 variable "gitops" {
   description = "Metadata written into generated bundles."
   type = object({

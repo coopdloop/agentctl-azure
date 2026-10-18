@@ -34,7 +34,11 @@ export function buildRuntimeConfig(env = process.env) {
     // Endpoints for the Azure cloud (AGENTCTL_CLOUD = AzureCloud | AzureUSGovernment | AzureChinaCloud).
     cloud,
     // Services the browser reaches through /proxy (App Service VNet integration -> private endpoints).
-    network: { proxyServices: parseProxyServices(env.AGENTCTL_PROXY_SERVICES) },
+    network: {
+      proxyServices: parseProxyServices(env.AGENTCTL_PROXY_SERVICES),
+      // Same-origin proxy path: /proxy on App Service and the dev server, /api/proxy on Static Web Apps.
+      proxyBase: /^\/[a-z/]+$/.test(env.AGENTCTL_PROXY_BASE ?? "") ? env.AGENTCTL_PROXY_BASE.replace(/\/$/, "") : "/proxy",
+    },
     azure: {
       // Primary subscription (defaults for new agents); observed subscriptions are the union.
       subscriptionId: primarySub,

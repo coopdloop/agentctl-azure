@@ -14,7 +14,7 @@ import { apiFetch } from "./http";
 
 export function viaProxy(endpoint: string): string {
   const u = new URL(endpoint);
-  return `${window.location.origin}/proxy/${u.host}${u.pathname.replace(/\/$/, "")}`;
+  return `${window.location.origin}${config.network.proxyBase}/${u.host}${u.pathname.replace(/\/$/, "")}`;
 }
 
 async function paged<T extends { id: string }>(url: (after?: string) => string): Promise<T[]> {

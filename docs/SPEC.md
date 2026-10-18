@@ -173,7 +173,7 @@ Approver groups per tier come from config (`AGENTCTL_APPROVERS_*`; Terraform `ap
 
 ## 7. Contracts
 
-### 7.1 Agent manifest (`agentctl.lariat.dev/v1alpha1`, kind `Agent`)
+### 7.1 Agent manifest (`agentctl/v1alpha1`, kind `Agent`)
 JSON Schema 2020-12: `app/src/schema/agent.schema.json`. The top-level sections are `metadata` (name slug, owners, team, classification, environment) and `spec` with: `foundry`, `model`, `instructions`, `harness.injections[]`, `tools[]` (discriminated by `type`), `knowledge`, `identity`, `access`, `guardrails` (`raiPolicy`, `limits`, `piiRedactionInTraces`), `observability`, `lifecycle`.
 
 Notable schema rules: privileged tools must have `requireApproval: always`; browser automation must be privileged; delegated scopes require the delegated or OBO flow; app roles require the app flow; RAI policy names may not start with `Microsoft.`.

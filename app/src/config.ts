@@ -16,7 +16,7 @@ export interface CloudProfile {
 export interface RuntimeConfig {
   mode: "mock" | "live";
   cloud: CloudProfile;
-  network: { proxyServices: ("arm" | "graph" | "logAnalytics")[] };
+  network: { proxyServices: ("arm" | "graph" | "logAnalytics")[]; proxyBase: string };
   environment: string;
   auth: { tenantId: string; clientId: string; redirectUri: string };
   azure: {
@@ -68,7 +68,7 @@ const defaults: RuntimeConfig = {
     foundryAudience: "https://ai.azure.com",
     foundryHostSuffixes: [".services.ai.azure.com", ".cognitiveservices.azure.com", ".openai.azure.com"],
   },
-  network: { proxyServices: [] },
+  network: { proxyServices: [], proxyBase: "/proxy" },
   auth: { tenantId: "", clientId: "", redirectUri: "" },
   azure: {
     subscriptionId: "",

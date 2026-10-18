@@ -28,6 +28,8 @@ export async function apiFetch<T>(
       method: init.method ?? (init.body ? "POST" : "GET"),
       headers: {
         authorization: `Bearer ${token}`,
+        // Same-origin proxy calls also carry the token in a custom header (some hosts strip Authorization).
+        ...(typeof window !== "undefined" && target.startsWith(window.location.origin) ? { "x-agentctl-authorization": `Bearer ${token}` } : {}),
         accept: "application/json",
         ...(init.body ? { "content-type": "application/json" } : {}),
         ...init.headers,

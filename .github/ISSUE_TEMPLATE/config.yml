@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/coopdloop/agentctl-azure/security/advisories/new
+    about: Report privately
+  - name: Documentation
+    url: https://coopdloop.github.io/agentctl-azure/
+    about: Deployment, permissions and troubleshooting guides

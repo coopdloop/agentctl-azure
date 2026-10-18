@@ -1,0 +1,6 @@
+{
+  "name": "agentctl-swa-api",
+  "private": true,
+  "description": "Azure Static Web Apps managed functions for agentctl: /api/config and /api/proxy. No dependencies.",
+  "engines": { "node": ">=20" }
+}

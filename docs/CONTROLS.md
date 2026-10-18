@@ -4,7 +4,7 @@ agentctl evaluates **50 AI risk controls in 11 domains** against your Azure envi
 Foundry account and every agent. Each control is cross-walked to seven frameworks. Results appear
 under **Risk & compliance** and in each agent's **Compliance** tab.
 
-- **Research and sources:** [`reports/AI risk frameworks controls crosswalk.md`](../reports/AI%20risk%20frameworks%20controls%20crosswalk.md), with the notes in `research_notes/`.
+- **Research and sources:** [`reports/AI risk frameworks controls crosswalk.md`]({{ repo_url }}/blob/main/reports/AI%20risk%20frameworks%20controls%20crosswalk.md), with the notes in `research_notes/`.
 - **Code:** `app/src/controls/`:
   - `catalog.ts`: controls and mappings;
   - `frameworks.ts`: framework registry;

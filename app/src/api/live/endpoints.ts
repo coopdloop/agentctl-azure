@@ -18,5 +18,5 @@ export function routeUrl(url: string): string {
     return url;
   }
   const proxied = config.network.proxyServices.some((s) => new URL(config.cloud[s]).host.toLowerCase() === u.host.toLowerCase());
-  return proxied ? `${window.location.origin}/proxy/${u.host}${u.pathname}${u.search}` : url;
+  return proxied ? `${window.location.origin}${config.network.proxyBase}/${u.host}${u.pathname}${u.search}` : url;
 }

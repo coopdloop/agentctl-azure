@@ -122,7 +122,7 @@ export function agentToManifest(agent: Agent, deployments: ModelDeployment[], su
     team: agent.metadata.team ?? "unassigned",
     dataClassification: (agent.metadata.dataClassification as AgentManifest["metadata"]["dataClassification"]) ?? "internal",
     environment: (agent.metadata.environment as AgentManifest["metadata"]["environment"]) ?? "prod",
-    labels: { "agentctl.lariat.dev/foundry-agent-id": agent.id },
+    labels: { "agentctl/foundry-agent-id": agent.id },
   };
   m.spec.foundry = { subscriptionId, resourceGroup: agent.resourceGroup, account: agent.account, project: agent.project };
   m.spec.model = {

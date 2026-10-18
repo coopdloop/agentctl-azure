@@ -41,46 +41,64 @@ function readBody(req) {
   });
 }
 
+/**
+ * Host-agnostic core: forwards one request to an allowlisted host. Used by the Node middleware
+ * below (Vite dev server, App Service) and by the Azure Static Web Apps managed function.
+ *   target   "<host>/<path>?<query>" (everything after the proxy prefix)
+ *   headers  lower-cased request headers (only FORWARD_REQUEST_HEADERS are sent)
+ * Returns { status, headers, body: Buffer }.
+ */
+export async function proxyRequest({ target, method = "GET", headers = {}, body, allowlist = DEFAULT_ALLOWED_HOST_SUFFIXES }) {
+  const json = (status, code, message) => ({
+    status,
+    headers: { "content-type": "application/json" },
+    body: Buffer.from(JSON.stringify({ error: { code, message } })),
+  });
+  const slash = target.indexOf("/");
+  const host = slash === -1 ? target : target.slice(0, slash);
+  const path = slash === -1 ? "/" : target.slice(slash);
+  if (!isAllowedHost(host, allowlist)) return json(403, "HostNotAllowed", `Proxy target ${host} is not allowlisted.`);
+  try {
+    // Only a fixed allowlist of request headers is forwarded (no cookies, no client IPs).
+    const fwd = new Headers();
+    for (const h of FORWARD_REQUEST_HEADERS) {
+      const v = headers[h];
+      if (typeof v === "string") fwd.set(h, v);
+    }
+    // Some hosts (Static Web Apps) consume Authorization; the SPA also sends the token here.
+    const alt = headers["x-agentctl-authorization"];
+    if (!fwd.has("authorization") && typeof alt === "string" && /^Bearer [A-Za-z0-9._~+/=-]+$/.test(alt)) fwd.set("authorization", alt);
+    const upstream = await fetch(`https://${host}${path}`, {
+      method,
+      headers: fwd,
+      body: ["GET", "HEAD"].includes(method) ? undefined : body,
+      redirect: "manual",
+    });
+    const out = {};
+    upstream.headers.forEach((value, key) => {
+      if (!DROP_RESPONSE_HEADERS.has(key.toLowerCase())) out[key] = value;
+    });
+    return { status: upstream.status, headers: out, body: Buffer.from(await upstream.arrayBuffer()) };
+  } catch (err) {
+    return json(502, "ProxyError", String(err?.message ?? err));
+  }
+}
+
 /** Connect/Node-style middleware: (req, res, next). Used by both Vite dev server and server.mjs. */
 export function createProxyMiddleware({ allowedHostSuffixes } = {}) {
-  const suffixes = allowedHostSuffixes?.length ? allowedHostSuffixes : DEFAULT_ALLOWED_HOST_SUFFIXES;
-
+  const allowlist = allowedHostSuffixes?.length ? allowedHostSuffixes : DEFAULT_ALLOWED_HOST_SUFFIXES;
   return async function proxy(req, res, next) {
     if (!req.url?.startsWith(PROXY_PREFIX)) return next();
-
-    const rest = req.url.slice(PROXY_PREFIX.length);
-    const slash = rest.indexOf("/");
-    const host = slash === -1 ? rest : rest.slice(0, slash);
-    const path = slash === -1 ? "/" : rest.slice(slash);
-
-    if (!isAllowedHost(host, suffixes)) {
-      res.statusCode = 403;
-      res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ error: { code: "HostNotAllowed", message: `Proxy target ${host} is not allowlisted.` } }));
-      return;
-    }
-
-    try {
-      // Only a fixed allowlist of request headers is forwarded (no cookies, no client IPs).
-      const headers = new Headers();
-      for (const h of FORWARD_REQUEST_HEADERS) {
-        const v = req.headers[h];
-        if (typeof v === "string") headers.set(h, v);
-      }
-      const method = req.method ?? "GET";
-      const body = ["GET", "HEAD"].includes(method) ? undefined : await readBody(req);
-
-      const upstream = await fetch(`https://${host}${path}`, { method, headers, body, redirect: "manual" });
-
-      res.statusCode = upstream.status;
-      upstream.headers.forEach((value, key) => {
-        if (!DROP_RESPONSE_HEADERS.has(key.toLowerCase())) res.setHeader(key, value);
-      });
-      res.end(Buffer.from(await upstream.arrayBuffer()));
-    } catch (err) {
-      res.statusCode = 502;
-      res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ error: { code: "ProxyError", message: String(err?.message ?? err) } }));
-    }
+    const method = req.method ?? "GET";
+    const r = await proxyRequest({
+      target: req.url.slice(PROXY_PREFIX.length),
+      method,
+      headers: req.headers,
+      body: ["GET", "HEAD"].includes(method) ? undefined : await readBody(req),
+      allowlist,
+    });
+    res.statusCode = r.status;
+    for (const [k, v] of Object.entries(r.headers)) res.setHeader(k, v);
+    res.end(r.body);
   };
 }

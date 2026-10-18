@@ -1,0 +1,4 @@
+# Docs site toolchain (GitHub Pages workflow and local `mkdocs serve`).
+mkdocs==1.6.1
+mkdocs-material==9.7.7
+mkdocs-macros-plugin==1.5.0

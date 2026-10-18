@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentctl.lariat.dev/schemas/v1alpha1/agent.schema.json",
+  "$id": "https://coopdloop.github.io/agentctl-azure/schemas/v1alpha1/agent.schema.json",
   "title": "agentctl Agent manifest",
   "description": "Declarative definition of a Foundry agent, its tools, identity, guardrails and platform harness injections. Consumed by the GitOps pipeline.",
   "type": "object",
@@ -13,7 +13,7 @@
   ],
   "properties": {
     "apiVersion": {
-      "const": "agentctl.lariat.dev/v1alpha1"
+      "const": "agentctl/v1alpha1"
     },
     "kind": {
       "const": "Agent"

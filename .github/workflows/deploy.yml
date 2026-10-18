@@ -1,6 +1,7 @@
-# Deploys a released, attested build to App Service with OIDC (no secrets). GitHub environments
-# agentctl-dev / agentctl-prod hold AZURE_CLIENT_ID and AZURE_WEBAPP_NAME; prod requires reviewers
-# and is restricted to tags. The artifact's provenance is verified before deploy.
+# Deploys a released, attested build with OIDC (no secrets) using scripts/deploy.sh, which
+# verifies SHA256SUMS and the build-provenance attestation before deploying.
+# GitHub environments agentctl-dev / agentctl-prod hold AZURE_CLIENT_ID, AZURE_RESOURCE_GROUP,
+# AZURE_APP_NAME and AGENTCTL_HOSTING (swa | appservice); prod requires reviewers, tags only.
 name: deploy
 
 on:
@@ -34,28 +35,24 @@ jobs:
     env:
       TAG: ${{ inputs.tag || github.event.release.tag_name }}
     steps:
-      - name: Download release artifact
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::invalid tag"; exit 1; }
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern agentctl-app.zip --pattern SHA256SUMS
-          grep agentctl-app.zip SHA256SUMS | sha256sum -c -
-      - name: Verify build provenance
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh attestation verify agentctl-app.zip --repo "$GITHUB_REPOSITORY" --signer-workflow "$GITHUB_REPOSITORY/.github/workflows/release.yml"
+      - name: Validate tag
+        run: '[[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::invalid tag"; exit 1; }'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.TAG }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         with:
           client-id: ${{ vars.AZURE_CLIENT_ID }}
           tenant-id: ${{ vars.AZURE_TENANT_ID }}
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
-      - name: Deploy
+      - name: Deploy (verifies checksum + provenance)
+        env:
+          GH_TOKEN: ${{ github.token }}
+          AGENTCTL_REPO: ${{ github.repository }}
         run: |
-          rg=$(az webapp list --query "[?name=='${{ vars.AZURE_WEBAPP_NAME }}'].resourceGroup | [0]" -o tsv)
-          az webapp deploy --resource-group "$rg" --name "${{ vars.AZURE_WEBAPP_NAME }}" --src-path agentctl-app.zip --type zip --async false
-      - name: Smoke test
-        run: |
-          host=$(az webapp show --name "${{ vars.AZURE_WEBAPP_NAME }}" --resource-group "$(az webapp list --query "[?name=='${{ vars.AZURE_WEBAPP_NAME }}'].resourceGroup | [0]" -o tsv)" --query defaultHostName -o tsv)
-          for i in 1 2 3 4 5 6; do curl -fsS "https://$host/healthz" && break; sleep 10; done
-          curl -fsSI "https://$host/" | grep -i "content-security-policy"
+          scripts/deploy.sh --target "${{ vars.AGENTCTL_HOSTING || 'swa' }}" --version "$TAG" \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" --name "${{ vars.AZURE_APP_NAME }}"

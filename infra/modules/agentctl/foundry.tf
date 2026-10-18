@@ -105,7 +105,7 @@ locals {
 
 resource "azurerm_monitor_diagnostic_setting" "foundry" {
   for_each                   = var.foundry.diagnostic_settings ? local.foundry_accounts_by_key : {}
-  name                       = "agentctl-to-law"
+  name                       = "agentctl-${local.base}"
   target_resource_id         = each.value
   log_analytics_workspace_id = local.law_id
 

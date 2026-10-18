@@ -69,10 +69,12 @@ module "agentctl" {
   network                      = var.network
   control_attestations         = var.control_attestations
   approved_mcp_hosts           = var.approved_mcp_hosts
+  static_web_app               = var.static_web_app
 }
 
 output "app_url" { value = module.agentctl.app_url }
 output "web_app_name" { value = module.agentctl.web_app_name }
+output "static_web_app_name" { value = module.agentctl.static_web_app_name }
 output "resource_group_name" { value = module.agentctl.resource_group_name }
 output "client_id" { value = module.agentctl.client_id }
 output "graph_scopes_skipped" { value = module.agentctl.graph_scopes_skipped }

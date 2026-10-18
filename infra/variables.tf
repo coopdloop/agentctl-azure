@@ -94,6 +94,10 @@ variable "network" {
   default = {}
 }
 
+variable "static_web_app" {
+  type    = any
+  default = {}
+}
 variable "control_attestations" {
   type    = any
   default = {}

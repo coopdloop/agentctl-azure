@@ -40,3 +40,4 @@ override.tf
 override.tf.json
 *_override.tf
 .terraform.lock.hcl.bak
+docs/schemas/

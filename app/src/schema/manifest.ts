@@ -5,7 +5,7 @@ import type { AgentGovernance } from "../lib/governance";
 
 import type { RiskTier } from "../config";
 
-export const API_VERSION = "agentctl.lariat.dev/v1alpha1";
+export const API_VERSION = "agentctl/v1alpha1";
 
 export type ToolType =
   | "code_interpreter"

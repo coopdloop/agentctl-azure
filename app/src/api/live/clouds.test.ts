@@ -46,3 +46,35 @@ describe("private routing", () => {
     expect(connectSources(cloud, [])).toContain("https://api.loganalytics.azure.com");
   });
 });
+
+describe("proxy core (shared by App Service and Static Web Apps)", () => {
+  it("maps x-agentctl-authorization only when well-formed and Authorization is absent", async () => {
+    // @ts-expect-error - plain ESM shared with the production server
+    const { proxyRequest } = await import("../../../server/proxy.mjs");
+    const seen: Headers[] = [];
+    const orig = globalThis.fetch;
+    globalThis.fetch = (async (_u: string, init: RequestInit) => {
+      seen.push(new Headers(init.headers));
+      return new Response("{}", { status: 200, headers: { "content-type": "application/json", "set-cookie": "x=1" } });
+    }) as typeof fetch;
+    try {
+      const allow = [".services.ai.azure.com"];
+      const ok = await proxyRequest({ target: "a.services.ai.azure.com/x", headers: { "x-agentctl-authorization": "Bearer abc.def" }, allowlist: allow });
+      expect(ok.status).toBe(200);
+      expect(seen[0].get("authorization")).toBe("Bearer abc.def");
+      expect(ok.headers["set-cookie"]).toBeUndefined(); // response cookies never reach the browser
+      await proxyRequest({ target: "a.services.ai.azure.com/x", headers: { authorization: "Bearer real", "x-agentctl-authorization": "Bearer other" }, allowlist: allow });
+      expect(seen[1].get("authorization")).toBe("Bearer real");
+      await proxyRequest({ target: "a.services.ai.azure.com/x", headers: { "x-agentctl-authorization": "Bearer a b\r\nx: 1" }, allowlist: allow });
+      expect(seen[2].get("authorization")).toBeNull();
+      expect((await proxyRequest({ target: "evil.example.com/x", headers: {}, allowlist: allow })).status).toBe(403);
+    } finally {
+      globalThis.fetch = orig;
+    }
+  });
+
+  it("accepts only path-like proxy bases", () => {
+    expect(buildRuntimeConfig({ AGENTCTL_PROXY_BASE: "/api/proxy/" }).network.proxyBase).toBe("/api/proxy");
+    expect(buildRuntimeConfig({ AGENTCTL_PROXY_BASE: "https://evil.example" }).network.proxyBase).toBe("/proxy");
+  });
+});

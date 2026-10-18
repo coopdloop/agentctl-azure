@@ -4,8 +4,15 @@
 #   scripts/init-gitops-repo.sh --update <dest-dir>   refresh tools/ and modules/ only (open a PR with the result)
 set -euo pipefail
 
-update=false
-if [[ "${1:-}" == "--update" ]]; then update=true; shift; fi
+update=false git_init=true
+while [[ "${1:-}" == --* ]]; do
+  case "$1" in
+    --update) update=true ;;
+    --no-git) git_init=false ;;
+    *) echo "unknown option $1" >&2; exit 2 ;;
+  esac
+  shift
+done
 dest="${1:?usage: init-gitops-repo.sh [--update] <dest-dir>}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -25,10 +32,12 @@ rm -rf "$dest/modules/foundry-agent/.terraform"
 src_rev="$(git -C "$root" rev-parse --short HEAD 2>/dev/null || echo unknown)"
 echo "agentctl@${src_rev}" > "$dest/tools/SOURCE"
 
-if ! $update; then
+if ! $update && $git_init; then
   git -C "$dest" init -q -b main
   git -C "$dest" add -A
   echo "Initialised $dest from agentctl@${src_rev}. Review, commit, then push to GitHub (see README.md)."
-else
+elif $update; then
   echo "Refreshed tools/ and modules/ from agentctl@${src_rev}. Commit on a branch and open a PR."
+else
+  echo "Wrote template to $dest (no git repo)."
 fi

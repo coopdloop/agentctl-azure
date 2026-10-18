@@ -1,94 +1,69 @@
-# agentctl: Agentic Platform Control Plane
+# agentctl for Azure
 
-A frontend-only control plane for Azure AI Foundry agents. It shows agent activity, who uses agents and with what authority (delegated, OBO, app-only, MI, Entra Agent ID), and guardrail posture. It also lets you register new agents and inject extra tools, instructions and guardrails into existing ones as reviewable **GitOps bundles**.
+[![ci](https://github.com/coopdloop/agentctl-azure/actions/workflows/ci.yml/badge.svg)](https://github.com/coopdloop/agentctl-azure/actions/workflows/ci.yml)
+[![codeql](https://github.com/coopdloop/agentctl-azure/actions/workflows/codeql.yml/badge.svg)](https://github.com/coopdloop/agentctl-azure/actions/workflows/codeql.yml)
+[![docs](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://coopdloop.github.io/agentctl-azure/)
 
-- **Spec:** [`docs/SPEC.md`](docs/SPEC.md)
-- **Access model:** [`docs/ACCESS.md`](docs/ACCESS.md): app roles, data scopes, telemetry access, onboarding, troubleshooting
-- **Any Azure environment:** [`docs/ENVIRONMENTS.md`](docs/ENVIRONMENTS.md): sovereign clouds, multiple subscriptions and workspaces, private networking
-- **AI risk controls:** [`docs/CONTROLS.md`](docs/CONTROLS.md): 50 controls cross-walked to OWASP LLM/Agentic, NIST AI RMF, ISO 42001, EU AI Act, MITRE ATLAS, MCSB, evaluated against Azure and every agent; research in [`reports/`](reports)
-- **Security:** [`docs/SSDLC.md`](docs/SSDLC.md) (CI gates, supply chain, releases), [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md), [`SECURITY.md`](SECURITY.md)
-- **Tenant validation log:** [`docs/VALIDATION.md`](docs/VALIDATION.md): what was deployed and tested, findings, open items
-- **App:** [`app/`](app): React + Vite + Fluent UI v9, MSAL, mock/live data sources
-- **Infra:** [`infra/`](infra): minimal `main.tf` + `terraform.tfvars.example`, calling [`modules/agentctl`](infra/modules/agentctl); bundles call [`modules/foundry-agent`](infra/modules/foundry-agent)
-- **GitOps repo template:** [`templates/agents-gitops/`](templates/agents-gitops): PR gate (verify, live drift check, approval gate) and deploy workflow for GitHub Actions. Create the repo with `scripts/init-gitops-repo.sh ../agents-gitops`
+**An agent control plane for Azure AI Foundry.**
+- **See** every agent, who uses it and with what authority.
+- **Check** every agent against 50 AI risk controls (OWASP LLM & Agentic Top 10, NIST AI RMF, ISO/IEC 42001, EU AI Act, MITRE ATLAS, Microsoft Cloud Security Benchmark).
+- **Change** agents safely through GitOps.
 
-## Run locally (mock data, no Azure needed)
+**Documentation:** [coopdloop.github.io/agentctl-azure](https://coopdloop.github.io/agentctl-azure/)
+- [Quickstart: deploy the latest release with Owner on one subscription](https://coopdloop.github.io/agentctl-azure/deploy/quickstart/)
+- [Permissions](https://coopdloop.github.io/agentctl-azure/getting-started/permissions/) · [Azure components](https://coopdloop.github.io/agentctl-azure/getting-started/azure-components/)
+- [Set up your private agents GitOps repo](https://coopdloop.github.io/agentctl-azure/gitops/setup/)
 
-```bash
-cd app
-npm install
-npm run dev          # http://localhost:5173
-```
+## Highlights
 
-The mock tenant has 8 agents across 3 Foundry projects, 30 days of runs, identities, grants, RAI policies and policy states, with deliberate findings to fix. Use the account menu (top right) to simulate app roles (Reader, IdentityReader, Requester, Builder, Approver, Admin) and data-scope groups. For example, untick Admin and tick "people-systems" to see a scoped user.
+- **Credential-less.** The browser calls Azure with the signed-in user's own token. The host only serves files, runtime config, and an allowlisted pass-through for Foundry (which has no CORS).
+- **Observe:**
+  - agents across subscriptions (Resource Graph);
+  - runs, tools and tokens from App Insights;
+  - auth flows (delegated, on-behalf-of, app-only, managed identity, Entra Agent ID).
+- **Govern:**
+  - guardrails, Azure Policy and Defender for AI;
+  - findings with fixes;
+  - **Risk & compliance** scores per framework and per agent, with an evidence export and an AI bill of materials.
+- **Change through GitOps:**
+  - the builder and *harness injection* produce verifiable bundles;
+  - a private agents repo (from the release template) verifies, drift-checks, approval-gates and deploys them with OIDC.
+- **Scoped access:** app roles plus data scopes enforced by Azure RBAC.
+- **Deploy anywhere:**
+  - Azure Static Web Apps (free) or App Service;
+  - multiple subscriptions, private networking (VNet, private endpoints, AMPLS), sovereign cloud profiles.
 
-Try the full loop:
-1. Open **Guardrails → Findings** and click **Fix** on a finding. Harness injection opens with the fix applied.
-2. Go to **Review & export** and download the bundle zip.
-3. As an Approver, open **Review bundle** and drop the zip in. The checks re-run independently.
-
-## Run locally against Azure
-
-```bash
-cd infra
-cp terraform.tfvars.example terraform.tfvars   # set subscription/tenant, Foundry, role groups, access scopes
-terraform init && terraform apply
-../scripts/local-env-from-tf.sh                  # writes app/.env.local from outputs
-cd ../app && npm run dev                         # switch to "Live" in the account menu
-```
-
-Or fill in `app/.env.local` by hand from `app/.env.example`. Restart `npm run dev` after changing it.
-
-Seed demo agents with traced conversations: see [VALIDATION.md §8](docs/VALIDATION.md#8-re-running-this-validation-elsewhere).
-
-## Access control
-
-Users need an agentctl app role (usually through the Terraform-managed `agentctl-<env>-<role>s` groups). Non-admins can be limited to specific Foundry projects and agent name patterns with `access_scopes`. Azure enforces project and telemetry access; the UI filters the rest. See [`docs/ACCESS.md`](docs/ACCESS.md).
-
-## GitOps
-
-Bundles go to a separate **agents-gitops** repo: `scripts/init-gitops-repo.sh ../agents-gitops`, then follow `templates/agents-gitops/README.md`. PRs are verified (`agentctl-verify`), drift-checked against live Foundry, and gated on the computed approvers; merges deploy via Terraform with OIDC.
-
-## Deploy to App Service
+## Quick look (no Azure needed)
 
 ```bash
-scripts/deploy-app.sh    # npm ci, build, package (dist + zero-dependency server), az webapp deploy
-```
-
-## Tests and checks
-
-```bash
-cd app && npm test       # schema, risk engine, bundle build/verify, tamper detection, proxy allowlist, scoping, UI smoke
-npm run build            # typecheck + production build
-npm run build:cli        # artifacts/agentctl-verify.mjs (+ .sha256) for the GitOps repo
-cd ../infra && terraform validate
+git clone https://github.com/coopdloop/agentctl-azure.git
+cd agentctl-azure/app && npm ci && npm run dev    # http://localhost:5173, mock tenant
 ```
 
 ## Repository layout
 
 ```
-app/
-  server/            config.mjs (/config.js), proxy.mjs (allowlisted /proxy), server.mjs (App Service)
-  scripts/           gen-validators.mjs (precompiled JSON Schema), package-app.mjs
-  src/
-    api/             DataSource interface; mock/ (seeded tenant); live/ (ARM, Graph, Log Analytics/KQL, Foundry); scoped.ts
-    auth/            MSAL (per-audience tokens), session, app roles, data scopes (scope.ts)
-    schema/          agent + change-request JSON Schemas, TS types, validators
-    bundle/          change detection, risk/approvals, Foundry payload, Terraform generation, zip, verify
-    lib/             harness library, findings engine, manifest defaults/mapping
-    pages/           Overview, Agents, AgentDetail, Activity, Identity, Guardrails, Harness, Review, Settings, builder/
-infra/
-  main.tf, variables.tf, terraform.tfvars.example
-  modules/agentctl/        App Service, Entra app + roles, LAW/App Insights, Foundry (optional), diagnostics, RBAC
-  modules/foundry-agent/   per-agent identity, RBAC, RAI policy, optional data-plane apply
-app/cli/agentctl-verify.ts  bundle verifier CLI for the pipeline (npm run build:cli → artifacts/)
-templates/agents-gitops/   GitOps repo template (workflows, approval mapping, platform Terraform)
-scripts/                   deploy-app.sh, local-env-from-tf.sh, init-gitops-repo.sh, seed/ (demo agents + traffic)
-docs/                      SPEC.md, ACCESS.md, ENVIRONMENTS.md, CONTROLS.md, VALIDATION.md, SSDLC.md, THREAT_MODEL.md
+app/                       SPA (React, Fluent UI), server/ (App Service), swa/api/ (Static Web Apps functions), cli/ (bundle verifier)
+infra/                     Terraform root + modules/agentctl (platform) and modules/foundry-agent (per agent)
+templates/agents-gitops/   template for your private agents repo (published as a release asset)
+docs/                      documentation site (MkDocs Material → GitHub Pages)
 reports/, research_notes/  AI risk frameworks research behind the controls catalog
-.github/                   CI (ci, codeql, scorecard), release + deploy workflows, Dependabot, CODEOWNERS
+scripts/                   deploy.sh, init-gitops-repo.sh, pin-actions.mjs, gen-terraform-docs.py, seed/ (demo agents)
+.github/                   CI, CodeQL, release (attested), deploy, docs, scorecard
 ```
 
-## Moving into your infra repo
+## Development
 
-Copy `infra/modules/agentctl` and `infra/modules/foundry-agent`, then call `agentctl` with the inputs from `terraform.tfvars.example`. Every dependency (resource group, Log Analytics, App Insights, Foundry) has a `create` / `existing_id` switch. Set `gitops.agent_module_source` to wherever `foundry-agent` ends up, so generated bundles reference it.
+```bash
+cd app && npm ci --ignore-scripts
+npm test && npm run typecheck && npm run build
+npm run package             # ../artifacts/agentctl-app.zip + agentctl-swa.zip
+cd ../infra && terraform init -backend=false && terraform validate
+pip install -r docs/requirements.txt && mkdocs serve     # docs at http://localhost:8000
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Security: [SECURITY.md](SECURITY.md) and the [SSDLC](https://coopdloop.github.io/agentctl-azure/SSDLC/).
+
+## Status
+
+Pre-1.0. Validated end to end on the public Azure cloud. Foundry agent APIs and several Microsoft signals used by the controls are preview (marked in the docs). Not an official Microsoft product.

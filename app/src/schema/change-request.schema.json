@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://agentctl.lariat.dev/schemas/v1alpha1/change-request.schema.json",
+  "$id": "https://coopdloop.github.io/agentctl-azure/schemas/v1alpha1/change-request.schema.json",
   "title": "agentctl ChangeRequest",
   "description": "A reviewable request to create an agent or change an existing one (tool injection, instruction updates, guardrail changes). The pipeline enforces spec.approvals.",
   "type": "object",
@@ -13,7 +13,7 @@
   ],
   "properties": {
     "apiVersion": {
-      "const": "agentctl.lariat.dev/v1alpha1"
+      "const": "agentctl/v1alpha1"
     },
     "kind": {
       "const": "ChangeRequest"

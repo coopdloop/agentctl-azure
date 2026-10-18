@@ -1,0 +1,106 @@
+site_name: agentctl
+site_description: Agent control plane for Azure AI Foundry - observe, govern and change AI agents through GitOps.
+site_url: https://coopdloop.github.io/agentctl-azure/
+repo_url: https://github.com/coopdloop/agentctl-azure
+repo_name: coopdloop/agentctl-azure
+edit_uri: edit/main/docs/
+copyright: agentctl contributors
+exclude_docs: |
+  requirements.txt
+
+# One place to change the GitHub repo and the release used in examples.
+extra:
+  repo: coopdloop/agentctl-azure
+  repo_url: https://github.com/coopdloop/agentctl-azure
+  version: v0.1.0
+  tf_version: "1.9.8"
+  node_version: "22"
+
+theme:
+  name: material
+  icon:
+    logo: material/robot-outline
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: blue
+      toggle: { icon: material/weather-night, name: Dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: blue
+      toggle: { icon: material/weather-sunny, name: Light mode }
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - navigation.indexes
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+    - content.action.edit
+
+plugins:
+  - search
+  - macros
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc: { permalink: true }
+  - pymdownx.details
+  - pymdownx.highlight: { anchor_linenums: true }
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.snippets
+  - pymdownx.tabbed: { alternate_style: true }
+  - pymdownx.tasklist: { custom_checkbox: true }
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - getting-started/index.md
+      - Prerequisites & tooling: getting-started/prerequisites.md
+      - Permissions: getting-started/permissions.md
+      - Azure components: getting-started/azure-components.md
+  - Deploy:
+      - deploy/index.md
+      - Quickstart (subscription Owner): deploy/quickstart.md
+      - Azure Static Web Apps: deploy/static-web-app.md
+      - Azure App Service: deploy/app-service.md
+      - Run locally: deploy/local.md
+      - Private networking & other clouds: ENVIRONMENTS.md
+      - Upgrade & uninstall: deploy/upgrade.md
+  - Agents GitOps repo:
+      - gitops/index.md
+      - Set up your private repo: gitops/setup.md
+      - Your first change: gitops/first-change.md
+  - Operate:
+      - Access model: ACCESS.md
+      - AI risk controls: CONTROLS.md
+      - Troubleshooting: operate/troubleshooting.md
+  - Reference:
+      - Configuration: reference/configuration.md
+      - Terraform inputs: reference/terraform.md
+      - Product spec: SPEC.md
+      - Security (SSDLC): SSDLC.md
+      - Threat model: THREAT_MODEL.md
+      - Validation log: VALIDATION.md

@@ -5,7 +5,7 @@ Software Development Framework (SSDF, SP 800-218)** practice groups (§10). agen
 agents, so it is itself a high-value target: it shapes agent instructions, tools and identities,
 and its users can read sensitive telemetry.
 
-Threats and mitigations: [THREAT_MODEL.md](THREAT_MODEL.md). Reporting: [SECURITY.md](../SECURITY.md).
+Threats and mitigations: [THREAT_MODEL.md](THREAT_MODEL.md). Reporting: [SECURITY.md]({{ repo_url }}/blob/main/SECURITY.md).
 
 ## 1. Principles
 

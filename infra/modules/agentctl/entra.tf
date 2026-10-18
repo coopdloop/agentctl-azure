@@ -16,7 +16,11 @@ locals {
     admin           = { value = "AgentCtl.Admin", display = "Admin", description = "Everything, unscoped; bulk remediation and platform guardrail baselines." }
   }
 
-  redirect_uris = concat(["https://${local.names.app}.azurewebsites.net/"], var.local_dev_redirect_uris)
+  redirect_uris = concat(
+    ["https://${local.names.app}.${local.sfx.web}/"],
+    var.static_web_app.enabled ? ["https://${azurerm_static_web_app.this[0].default_host_name}/"] : [],
+    var.local_dev_redirect_uris,
+  )
 }
 
 data "azuread_service_principal" "graph" {

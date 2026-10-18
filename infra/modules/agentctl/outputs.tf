@@ -1,6 +1,13 @@
 output "app_url" {
-  description = "agentctl URL."
-  value       = var.app_service.enabled ? "https://${azurerm_linux_web_app.this[0].default_hostname}" : "(app_service disabled)"
+  description = "agentctl URL (Static Web App if enabled, else App Service)."
+  value = (
+    var.static_web_app.enabled ? "https://${azurerm_static_web_app.this[0].default_host_name}" :
+    var.app_service.enabled ? "https://${azurerm_linux_web_app.this[0].default_hostname}" : "(no hosting enabled: run locally)"
+  )
+}
+
+output "static_web_app_name" {
+  value = var.static_web_app.enabled ? azurerm_static_web_app.this[0].name : ""
 }
 
 output "web_app_name" {
