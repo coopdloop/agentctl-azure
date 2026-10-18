@@ -4,7 +4,7 @@ site_url: https://coopdloop.github.io/agentctl-azure/
 repo_url: https://github.com/coopdloop/agentctl-azure
 repo_name: coopdloop/agentctl-azure
 edit_uri: edit/main/docs/
-copyright: agentctl contributors
+copyright: Copyright &copy; 2026 coopdloop · MIT License
 exclude_docs: |
   requirements.txt
 

@@ -67,3 +67,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). Security: [SECURITY.md](SECURITY.md) and
 ## Status
 
 Pre-1.0. Validated end to end on the public Azure cloud. Foundry agent APIs and several Microsoft signals used by the controls are preview (marked in the docs). Not an official Microsoft product.
+
+## License
+
+[MIT](LICENSE)
