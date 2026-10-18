@@ -11,6 +11,7 @@
 
 **Documentation:** [coopdloop.github.io/agentctl-azure](https://coopdloop.github.io/agentctl-azure/)
 - [Quickstart: deploy the latest release with Owner on one subscription](https://coopdloop.github.io/agentctl-azure/deploy/quickstart/)
+- [Add agentctl to your existing Terraform](https://coopdloop.github.io/agentctl-azure/deploy/existing-terraform/)
 - [Permissions](https://coopdloop.github.io/agentctl-azure/getting-started/permissions/) · [Azure components](https://coopdloop.github.io/agentctl-azure/getting-started/azure-components/)
 - [Set up your private agents GitOps repo](https://coopdloop.github.io/agentctl-azure/gitops/setup/)
 

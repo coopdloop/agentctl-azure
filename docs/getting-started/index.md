@@ -25,4 +25,4 @@ flowchart TD
 | **Hosting** | **Static Web Apps (Free)** unless you need private networking. App Service needs VM quota (new pay-as-you-go subscriptions often have none) but supports VNet integration. See [Deploy](../deploy/index.md). |
 | **Admin consent** | agentctl reads directory data (app registrations, grants, agent identities) through delegated Graph permissions that need tenant admin consent. Without it, everything else works. See [Permissions](permissions.md#entra-id). |
 
-Next: [Prerequisites & tooling](prerequisites.md).
+Next: [Prerequisites & tooling](prerequisites.md). If your Azure platform is already managed in Terraform, read [Add to existing Terraform](../deploy/existing-terraform.md) next.

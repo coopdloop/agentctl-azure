@@ -37,4 +37,6 @@ Every package carries a **build provenance attestation** (SLSA). `scripts/deploy
 gh attestation verify agentctl-swa.zip --repo {{ repo }}
 ```
 
-Next: the [Quickstart](quickstart.md).
+Next:
+- the [Quickstart](quickstart.md) for a new standalone deployment; or
+- [Add to existing Terraform](existing-terraform.md) to wire agentctl into an infra repo you already have.

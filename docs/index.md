@@ -13,7 +13,7 @@ hide:
 
     ---
 
-    With **Owner on one subscription**: Terraform, then the latest release to Azure Static Web Apps.
+    With **Owner on one subscription**: Terraform, then the latest release to Azure Static Web Apps. Existing Terraform? [Add it to your infra repo](deploy/existing-terraform.md).
 
 - :material-source-branch: **[Set up your agents repo](gitops/setup.md)**
 

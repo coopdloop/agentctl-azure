@@ -40,7 +40,7 @@ resource "azurerm_role_assignment" "viewer_law" {
 resource "azurerm_role_assignment" "viewer_ai_user" {
   for_each           = local.viewer_ai_user
   scope              = each.value.scope
-  role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d"
+  role_definition_id = "/subscriptions/${split("/", each.value.scope)[2]}/providers/Microsoft.Authorization/roleDefinitions/${local.foundry_user_role_id}"
   principal_id       = each.value.principal
 }
 
@@ -88,7 +88,7 @@ locals {
 resource "azurerm_role_assignment" "scope_project" {
   for_each           = local.scope_project_grants
   scope              = each.value.scope
-  role_definition_id = "/subscriptions/${data.azurerm_client_config.current.subscription_id}/providers/Microsoft.Authorization/roleDefinitions/53ca6127-db72-4b80-b1b0-d745d6d5456d"
+  role_definition_id = "/subscriptions/${split("/", each.value.scope)[2]}/providers/Microsoft.Authorization/roleDefinitions/${local.foundry_user_role_id}"
   principal_id       = each.value.principal
 }
 
@@ -130,4 +130,10 @@ resource "azurerm_role_assignment" "scope_telemetry" {
   scope              = each.value.scope
   role_definition_id = azurerm_role_definition.telemetry_reader[0].role_definition_resource_id
   principal_id       = each.value.principal
+}
+
+locals {
+  # Built-in "Foundry User" (formerly "Azure AI User"). Its definition path is formed in the subscription
+  # of each assignment's scope, so Foundry accounts can live in any subscription.
+  foundry_user_role_id = "53ca6127-db72-4b80-b1b0-d745d6d5456d"
 }

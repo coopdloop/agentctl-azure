@@ -1,5 +1,8 @@
 # Quickstart: subscription Owner, latest release
 
+!!! tip "Already have platform Terraform?"
+    Wire agentctl into your existing root and reuse your workspace, Foundry, groups and network instead. See [Add to existing Terraform](existing-terraform.md).
+
 **Goal:** agentctl {{ version }} running on Azure Static Web Apps against your Foundry agents, signed in as Admin, in about 30 minutes.
 
 **You need:**
