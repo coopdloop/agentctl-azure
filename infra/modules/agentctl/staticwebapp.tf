@@ -12,9 +12,11 @@ resource "azurerm_static_web_app" "this" {
   sku_size            = var.static_web_app.sku_tier
   tags                = local.tags
 
-  # Deployments come from the release package via the deployment token (scripts/deploy-swa.sh).
+  # Deployments come from the release package via the deployment token (scripts/deploy.sh).
+  # App settings are owned by azapi_resource_action.swa_app_settings below; without ignoring them
+  # here this resource would wipe them on every apply.
   lifecycle {
-    ignore_changes = [repository_url, repository_branch]
+    ignore_changes = [repository_url, repository_branch, app_settings]
   }
 }
 
