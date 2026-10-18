@@ -8,6 +8,7 @@
 
 import { composeInstructions } from "../lib/manifestDefaults";
 import type { AgentManifest, ToolSpec } from "../schema/manifest";
+import { GOVERNANCE_METADATA_KEY, encodeGovernance } from "../lib/governance";
 
 const connId = (m: AgentManifest, name: string) =>
   `/subscriptions/${m.spec.foundry.subscriptionId}/resourceGroups/${m.spec.foundry.resourceGroup}/providers/Microsoft.CognitiveServices/accounts/${m.spec.foundry.account}/projects/${m.spec.foundry.project}/connections/${name}`;
@@ -110,6 +111,7 @@ export function foundryAgentPayload(m: AgentManifest, manifestSha: string): Reco
     "agentctl.manifest_sha256": manifestSha,
     "agentctl.harness": m.spec.harness.injections.map((i) => i.id).join(",").slice(0, 512),
     "agentctl.max_tool_calls": String(m.spec.guardrails.limits.maxToolCallsPerRun),
+    ...(m.spec.governance ? { [GOVERNANCE_METADATA_KEY]: encodeGovernance(m.spec.governance) } : {}),
   };
 
   return {

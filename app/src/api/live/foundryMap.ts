@@ -1,6 +1,7 @@
 // Pure mapping from Foundry API objects (agents + classic assistants) to agentctl's Agent model.
 // No browser or auth dependencies, so it is shared by the app, scripts and tests.
 
+import { GOVERNANCE_METADATA_KEY, decodeGovernance } from "../../lib/governance";
 import type { Agent, AgentTool, FoundryProject } from "../types";
 
 export interface FoundryTool {
@@ -12,6 +13,7 @@ export interface FoundryTool {
   server_label?: string;
   server_url?: string;
   require_approval?: string | Record<string, unknown>;
+  allowed_tools?: string[];
   openapi?: { name?: string };
   function?: { name?: string };
   azure_function?: { function?: { name?: string } };
@@ -73,7 +75,7 @@ function mapTool(t: FoundryTool): AgentTool {
   const approval = typeof t.require_approval === "string" ? t.require_approval : t.require_approval ? "write_only" : undefined;
   switch (type) {
     case "mcp":
-      return { type: "mcp", name: t.server_label ?? "mcp", detail: t.server_url, requireApproval: approval ?? "always" };
+      return { type: "mcp", name: t.server_label ?? "mcp", detail: t.server_url, requireApproval: approval ?? "always", allowedTools: Array.isArray(t.allowed_tools) ? t.allowed_tools : undefined };
     case "openapi":
       return { type: "openapi", name: t.openapi?.name ?? "openapi" };
     case "function":
@@ -118,6 +120,7 @@ export function fromAssistant(p: FoundryProject, a: FoundryAssistant): Agent {
     metadata: normaliseMetadata(a.metadata ?? {}),
     owner: a.metadata?.["agentctl.owners"]?.split(",")[0] ?? a.metadata?.owner,
     api: "assistants",
+    governance: decodeGovernance(a.metadata?.[GOVERNANCE_METADATA_KEY]),
   };
 }
 
@@ -143,6 +146,7 @@ export function fromAgentV2(p: FoundryProject, a: FoundryAgentV2): Agent {
     kind: v.definition.kind,
     state: a.state,
     blueprintAppId: v.blueprint?.client_id,
+    governance: decodeGovernance(md[GOVERNANCE_METADATA_KEY]),
   };
 }
 

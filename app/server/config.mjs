@@ -60,6 +60,12 @@ export function buildRuntimeConfig(env = process.env) {
     },
     // JSON: {"unscopedDefault":"all"|"none","scopes":[{"name","groups":[oid],"projects":["account/project"],"agents":["glob"]}]}
     access: parseJson(env.AGENTCTL_ACCESS_SCOPES, { scopes: [], unscopedDefault: "all" }),
+    // AI risk controls (docs/CONTROLS.md): attestations keyed "<control>" or "<control>@<agent>",
+    // and MCP server hosts approved for TL-02.
+    controls: {
+      attestations: parseJson(env.AGENTCTL_ATTESTATIONS, {}),
+      approvedMcpHosts: list(env.AGENTCTL_APPROVED_MCP_HOSTS),
+    },
     approvals: {
       // Entra group object ids or names per risk tier; written into change requests.
       read: list(env.AGENTCTL_APPROVERS_READ || "agent-owners"),

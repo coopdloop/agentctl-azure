@@ -1,3 +1,4 @@
+import type { AgentGovernance } from "../lib/governance";
 // Domain model for everything the control plane *observes*. Both the mock and the live
 // DataSource return these shapes, so pages never know which one they are talking to.
 
@@ -31,6 +32,8 @@ export interface AgentTool {
   name: string;
   detail?: string;
   requireApproval?: string;
+  /** MCP: tools the agent may call on the server (empty/undefined = all). */
+  allowedTools?: string[];
   description?: string;
   /** Function tools: JSON schema of the arguments, kept for round-tripping into manifests. */
   parameters?: unknown;
@@ -62,6 +65,8 @@ export interface Agent {
   kind?: string;
   state?: string;
   blueprintAppId?: string;
+  /** Risk tier and attestations from agent metadata (agentctl.governance). */
+  governance?: AgentGovernance;
 }
 
 export interface AgentStats {
@@ -215,6 +220,34 @@ export interface ContentSafety {
   capture: { agentName: string; spans: number; capturedSpans: number }[];
 }
 
+/** Security posture of a Foundry (AIServices) account, from ARM / Resource Graph. */
+export interface FoundryAccountPosture {
+  id: string;
+  name: string;
+  subscriptionId: string;
+  resourceGroup: string;
+  location: string;
+  disableLocalAuth: boolean;
+  publicNetworkAccess: string; // Enabled | Disabled | SecuredByPerimeter
+  networkDefaultAction?: string; // Allow | Deny
+  privateEndpoints: number;
+  customerManagedKey: boolean;
+  managedIdentity: boolean;
+  restrictOutboundNetworkAccess: boolean;
+  allowedFqdns: number;
+  /** true/false when readable; null when the caller can't read diagnostic settings. */
+  diagnosticsToWorkspace: boolean | null;
+}
+
+/** Microsoft Defender for Cloud posture for AI workloads. */
+export interface DefenderPosture {
+  subscriptionId: string;
+  /** Defender for AI Services plan ("Standard" = on). "Unknown" when not readable. */
+  aiPlan: "Standard" | "Free" | "Unknown";
+  alerts: { alertType: string; name: string; severity: string; resourceId: string; count: number; lastSeen: string }[];
+  recommendations: { name: string; status: "Healthy" | "Unhealthy" | "NotApplicable"; resourceId: string; severity?: string }[];
+}
+
 export interface SourceHealth {
   source: string;
   ok: boolean;
@@ -241,6 +274,8 @@ export interface DataSource {
   raiPolicies(): Promise<RaiPolicy[]>;
   contentSafety(range: TimeRange): Promise<ContentSafety>;
   policyStates(): Promise<PolicyState[]>;
+  accountPosture(): Promise<FoundryAccountPosture[]>;
+  defenderPosture(): Promise<DefenderPosture[]>;
   /** The current deployed state expressed as a manifest — the "before" for change requests. */
   manifestFor(agent: Agent): Promise<AgentManifest>;
   health(): Promise<SourceHealth[]>;

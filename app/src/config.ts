@@ -33,7 +33,20 @@ export interface RuntimeConfig {
   };
   gitops: { repo: string; basePath: string; agentModuleSource: string };
   access: AccessConfig;
+  controls: { attestations: Record<string, Attestation>; approvedMcpHosts: string[] };
   approvals: Record<RiskTier, string[]>;
+}
+
+/** A human sign-off for a control (environment-wide "GV-05" or per agent "TL-04@crm-writer"). */
+export interface Attestation {
+  status: "attested" | "risk_accepted" | "not_applicable";
+  evidence?: string;
+  owner?: string;
+  /** yyyy-mm-dd */
+  date: string;
+  /** yyyy-mm-dd; after this the attestation counts as expired. */
+  expires?: string;
+  note?: string;
 }
 
 declare global {
@@ -71,6 +84,7 @@ const defaults: RuntimeConfig = {
   },
   gitops: { repo: "", basePath: "agents", agentModuleSource: "../../../modules/foundry-agent" },
   access: { scopes: [], unscopedDefault: "all" },
+  controls: { attestations: {}, approvedMcpHosts: [] },
   approvals: {
     read: ["agent-owners"],
     write: ["agent-owners", "platform-security"],
@@ -90,6 +104,10 @@ export const config: RuntimeConfig = {
   azure: { ...defaults.azure, ...injected.azure },
   gitops: { ...defaults.gitops, ...injected.gitops },
   access: parseAccessConfig(injected.access),
+  controls: {
+    attestations: injected.controls?.attestations && typeof injected.controls.attestations === "object" ? injected.controls.attestations : {},
+    approvedMcpHosts: Array.isArray(injected.controls?.approvedMcpHosts) ? injected.controls.approvedMcpHosts.map(String) : [],
+  },
   approvals: { ...defaults.approvals, ...injected.approvals },
 };
 

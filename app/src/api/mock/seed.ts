@@ -1,3 +1,4 @@
+import type { AgentGovernance } from "../../lib/governance";
 // Seeded mock tenant. Deterministic (fixed PRNG seed) so charts and tables are stable between
 // reloads. Deliberately contains findings the UI should surface: write tools without approval,
 // agents missing mandatory harness injections, an unfiltered deployment, high-privilege grants.
@@ -210,6 +211,31 @@ export const AGENTS: Agent[] = [
     owner: "priya.nair@contoso.example",
   }),
 ];
+
+// Governance attestations (normally in agent metadata "agentctl.governance"): a mix of complete,
+// stale and missing evidence so the controls page has something to show.
+const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+const MOCK_GOVERNANCE: Record<string, AgentGovernance> = {
+  "hr-benefits-assistant": {
+    riskTier: "high", intakeId: "INT-2026-031", impactAssessment: { id: "IA-2026-014", date: daysAgo(120) }, threatModel: { id: "TM-HR-03", date: daysAgo(90) },
+    evaluation: { id: "eval-run-7781", date: daysAgo(30) }, redTeam: { id: "rt-run-118", date: daysAgo(150) }, killSwitchDrill: { id: "drill-q3", date: daysAgo(60) },
+    userFacing: true, disclosure: "https://intranet.contoso.example/ai/hr-benefits-notice",
+  },
+  "it-helpdesk-agent": { riskTier: "medium", intakeId: "INT-2025-112", impactAssessment: { id: "IA-2025-077", date: daysAgo(400) }, userFacing: true },
+  "finance-invoice-triage": {
+    riskTier: "high", intakeId: "INT-2026-002", impactAssessment: { id: "IA-2026-002", date: daysAgo(200) }, threatModel: { id: "TM-FIN-01", date: daysAgo(200) },
+    evaluation: { id: "eval-run-6620", date: daysAgo(70) }, redTeam: { id: "rt-run-090", date: daysAgo(40) }, killSwitchDrill: { id: "drill-q2", date: daysAgo(150) }, userFacing: false,
+  },
+  "secops-triage-agent": { riskTier: "high", intakeId: "INT-2026-019", threatModel: { id: "TM-SOC-02", date: daysAgo(20) }, redTeam: { id: "rt-run-131", date: daysAgo(10) }, userFacing: false },
+  "crm-writer": { riskTier: "medium", intakeId: "INT-2026-044", userFacing: false },
+};
+for (const a of AGENTS) {
+  a.governance = MOCK_GOVERNANCE[a.name];
+  // Agents deployed through the GitOps pipeline carry the manifest hash and limits.
+  if (["hr-benefits-assistant", "finance-invoice-triage", "secops-triage-agent"].includes(a.name))
+    Object.assign(a.metadata, { "agentctl.manifest_sha256": "9f2c".padEnd(64, "0"), "agentctl.max_tool_calls": "12" });
+  for (const t of a.tools) if (t.type === "mcp" && t.name === "dynamics") t.allowedTools = ["create_opportunity", "update_contact"];
+}
 
 export const USERS = [
   "maria.garcia", "devon.lee", "priya.nair", "sam.okafor", "alex.kim", "jordan.wu", "taylor.reed", "chris.morgan",

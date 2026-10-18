@@ -2,7 +2,7 @@
 // compliance and RBAC. Token audience: https://management.azure.com (CORS-enabled).
 
 import { config } from "../../config";
-import type { AzureRoleAssignment, FoundryProject, ModelDeployment, PolicyState, RaiPolicy } from "../types";
+import type { AzureRoleAssignment, DefenderPosture, FoundryAccountPosture, FoundryProject, ModelDeployment, PolicyState, RaiPolicy } from "../types";
 import { cloudUrl } from "./endpoints";
 import { apiFetch, fetchAllPages } from "./http";
 
@@ -18,7 +18,19 @@ interface ArmAccount {
   name: string;
   kind: string;
   location: string;
-  properties: { customSubDomainName?: string; endpoints?: Record<string, string>; allowProjectManagement?: boolean };
+  identity?: { type?: string };
+  properties: {
+    customSubDomainName?: string;
+    endpoints?: Record<string, string>;
+    allowProjectManagement?: boolean;
+    disableLocalAuth?: boolean;
+    publicNetworkAccess?: string;
+    networkAcls?: { defaultAction?: string };
+    privateEndpointConnections?: unknown[];
+    encryption?: { keySource?: string };
+    restrictOutboundNetworkAccess?: boolean;
+    allowedFqdnList?: string[];
+  };
 }
 interface ArmProject {
   id: string;
@@ -71,7 +83,7 @@ let accountsCache: Promise<ArmAccount[]> | null = null;
 
 export function listFoundryAccounts(): Promise<ArmAccount[]> {
   accountsCache ??= resourceGraph<ArmAccount>(
-    "resources | where type =~ 'microsoft.cognitiveservices/accounts' and kind =~ 'AIServices' | project id, name, kind, location, properties",
+    "resources | where type =~ 'microsoft.cognitiveservices/accounts' and kind =~ 'AIServices' | project id, name, kind, location, identity, properties",
   )
     .catch((e) => {
       console.warn("arm: Resource Graph unavailable, listing per subscription", e);
@@ -249,4 +261,75 @@ export async function armPing(): Promise<string> {
   if (!subs.length) throw new Error("no readable subscriptions");
   const first = await apiFetch<{ displayName: string }>("arm", `${ARM}/subscriptions/${subs[0]}?api-version=2022-12-01`);
   return subs.length === 1 ? `subscription "${first.displayName}"` : `${subs.length} subscriptions (incl. "${first.displayName}")`;
+}
+
+/** Security posture of every observed Foundry account (properties + diagnostic settings). */
+export async function listAccountPosture(lawResourceId: string): Promise<FoundryAccountPosture[]> {
+  const accounts = await listFoundryAccounts();
+  return Promise.all(
+    accounts.map(async (a) => {
+      const p = a.properties ?? {};
+      const diag = await fetchAllPages<{ properties: { workspaceId?: string } }>(
+        "arm",
+        `${ARM}${a.id}/providers/Microsoft.Insights/diagnosticSettings?api-version=2021-05-01-preview`,
+      )
+        .then((ds) => ds.some((d) => (lawResourceId ? d.properties.workspaceId?.toLowerCase() === lawResourceId.toLowerCase() : Boolean(d.properties.workspaceId))))
+        .catch(() => null);
+      return {
+        id: a.id,
+        name: a.name,
+        subscriptionId: subOf(a.id),
+        resourceGroup: rgOf(a.id),
+        location: a.location,
+        disableLocalAuth: Boolean(p.disableLocalAuth),
+        publicNetworkAccess: p.publicNetworkAccess ?? "Enabled",
+        networkDefaultAction: p.networkAcls?.defaultAction,
+        privateEndpoints: p.privateEndpointConnections?.length ?? 0,
+        customerManagedKey: (p.encryption?.keySource ?? "").toLowerCase() === "microsoft.keyvault",
+        managedIdentity: Boolean(a.identity?.type && a.identity.type !== "None"),
+        restrictOutboundNetworkAccess: Boolean(p.restrictOutboundNetworkAccess),
+        allowedFqdns: p.allowedFqdnList?.length ?? 0,
+        diagnosticsToWorkspace: diag,
+      };
+    }),
+  );
+}
+
+/** Defender for Cloud: AI plan per subscription, AI alerts and AI-resource recommendations (Resource Graph). */
+export async function listDefenderPosture(): Promise<DefenderPosture[]> {
+  const subs = await listSubscriptions();
+  const plans = await Promise.all(
+    subs.map(async (id) => {
+      const r = await apiFetch<{ value: { name: string; properties: { pricingTier: string } }[] }>(
+        "arm",
+        `${ARM}/subscriptions/${id}/providers/Microsoft.Security/pricings?api-version=2024-01-01`,
+      ).catch(() => null);
+      // The AI plan's pricing name is "AI" (Defender for AI services).
+      const ai = r?.value.find((v) => /^ai/i.test(v.name));
+      return { id, aiPlan: (r ? (ai?.properties.pricingTier === "Standard" ? "Standard" : "Free") : "Unknown") as DefenderPosture["aiPlan"] };
+    }),
+  );
+  type AlertRow = { subscriptionId: string; alertType: string; name: string; severity: string; resourceId: string; count: number; lastSeen: string };
+  const alerts = await resourceGraph<AlertRow>(
+    `securityresources | where type =~ 'microsoft.security/locations/alerts' | where tostring(properties.alertType) startswith 'AI.' or tostring(properties.alertType) contains 'LLM'
+     | extend alertType = tostring(properties.alertType), name = tostring(properties.alertDisplayName), severity = tostring(properties.severity),
+       resourceId = tolower(tostring(properties.resourceIdentifiers[0].azureResourceId)), t = todatetime(properties.timeGeneratedUtc)
+     | summarize count = count(), lastSeen = tostring(max(t)) by subscriptionId, alertType, name, severity, resourceId`,
+  ).catch(() => [] as AlertRow[]);
+  type RecRow = { subscriptionId: string; name: string; status: string; resourceId: string; severity: string };
+  const recs = await resourceGraph<RecRow>(
+    `securityresources | where type =~ 'microsoft.security/assessments'
+     | extend resourceId = tolower(tostring(properties.resourceDetails.Id)), name = tostring(properties.displayName),
+       status = tostring(properties.status.code), severity = tostring(properties.metadata.severity)
+     | where resourceId contains '/providers/microsoft.cognitiveservices/accounts/' or name has_any ('AI', 'Foundry', 'MCP', 'agent')
+     | project subscriptionId, name, status, resourceId, severity`,
+  ).catch(() => [] as RecRow[]);
+  return plans.map((p) => ({
+    subscriptionId: p.id,
+    aiPlan: p.aiPlan,
+    alerts: alerts.filter((a) => a.subscriptionId === p.id).map(({ subscriptionId: _s, ...a }) => a),
+    recommendations: recs
+      .filter((r) => r.subscriptionId === p.id)
+      .map((r) => ({ name: r.name, resourceId: r.resourceId, severity: r.severity, status: (["Healthy", "Unhealthy"].includes(r.status) ? r.status : "NotApplicable") as "Healthy" | "Unhealthy" | "NotApplicable" })),
+  }));
 }

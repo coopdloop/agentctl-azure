@@ -112,6 +112,15 @@ export function scopeDataSource(inner: DataSource, scope: ResolvedScope): DataSo
       const accts = await accountsInScope();
       return (await inner.raiPolicies()).filter((p) => accts.has(p.account));
     },
+    async accountPosture() {
+      const accts = await accountsInScope();
+      return (await inner.accountPosture()).filter((a) => accts.has(a.name));
+    },
+    async defenderPosture() {
+      const accts = [...(await accountsInScope())].map((a) => `/accounts/${a.toLowerCase()}`);
+      const mine = (id: string) => accts.some((a) => id.toLowerCase().includes(a));
+      return (await inner.defenderPosture()).map((d) => ({ ...d, alerts: d.alerts.filter((x) => mine(x.resourceId)), recommendations: d.recommendations.filter((x) => mine(x.resourceId)) }));
+    },
     async policyStates() {
       const accts = await accountsInScope();
       return (await inner.policyStates()).filter((p) => [...accts].some((a) => p.resourceId.toLowerCase().includes(`/accounts/${a.toLowerCase()}`)));

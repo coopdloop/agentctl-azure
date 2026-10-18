@@ -1,7 +1,7 @@
 import { config } from "../../config";
 import { HARNESS_TOOLS } from "../../lib/harnessLibrary";
 import { agentToManifest } from "../../lib/manifestDefaults";
-import type {
+import type { DefenderPosture, FoundryAccountPosture,
   Agent,
   AgentRun,
   AgentStats,
@@ -329,6 +329,42 @@ export class MockDataSource implements DataSource {
     return delay({ filters, capture });
   }
   policyStates = () => delay(POLICY_STATES);
+
+  // Prod is hardened; dev deliberately isn't, so the controls page has failures to show.
+  accountPosture = () =>
+    delay<FoundryAccountPosture[]>([
+      {
+        id: `/subscriptions/${SUB}/resourceGroups/rg-ai-prod/providers/Microsoft.CognitiveServices/accounts/aif-contoso-prod`,
+        name: "aif-contoso-prod", subscriptionId: SUB, resourceGroup: "rg-ai-prod", location: "eastus2",
+        disableLocalAuth: true, publicNetworkAccess: "Disabled", networkDefaultAction: "Deny", privateEndpoints: 1,
+        customerManagedKey: true, managedIdentity: true, restrictOutboundNetworkAccess: true, allowedFqdns: 4, diagnosticsToWorkspace: true,
+      },
+      {
+        id: `/subscriptions/${SUB}/resourceGroups/rg-ai-dev/providers/Microsoft.CognitiveServices/accounts/aif-contoso-dev`,
+        name: "aif-contoso-dev", subscriptionId: SUB, resourceGroup: "rg-ai-dev", location: "eastus2",
+        disableLocalAuth: false, publicNetworkAccess: "Enabled", networkDefaultAction: "Allow", privateEndpoints: 0,
+        customerManagedKey: false, managedIdentity: true, restrictOutboundNetworkAccess: false, allowedFqdns: 0, diagnosticsToWorkspace: false,
+      },
+    ]);
+
+  defenderPosture = () => {
+    const acct = (a: string) => `/subscriptions/${SUB}/resourcegroups/rg-ai-${a}/providers/microsoft.cognitiveservices/accounts/aif-contoso-${a}`;
+    return delay<DefenderPosture[]>([
+      {
+        subscriptionId: SUB,
+        aiPlan: "Standard",
+        alerts: [
+          { alertType: "AI.Azure_Jailbreak.ContentFiltering.BlockedAttempt", name: "Jailbreak attempt on an Azure AI model deployment was blocked by Prompt Shields", severity: "Medium", resourceId: acct("prod"), count: 7, lastSeen: new Date(Date.now() - 5 * HOUR).toISOString() },
+          { alertType: "AI.Azure_AsciiSmuggling", name: "ASCII smuggling prompt injection detected", severity: "High", resourceId: acct("dev"), count: 2, lastSeen: new Date(Date.now() - 30 * HOUR).toISOString() },
+        ],
+        recommendations: [
+          { name: "Azure AI Services resources should have key access disabled (disable local authentication)", status: "Unhealthy", resourceId: acct("dev"), severity: "Medium" },
+          { name: "Azure AI Services resources should restrict network access", status: "Unhealthy", resourceId: acct("dev"), severity: "Medium" },
+          { name: "Azure AI Services resources should have key access disabled (disable local authentication)", status: "Healthy", resourceId: acct("prod"), severity: "Medium" },
+        ],
+      },
+    ]);
+  };
 
   async manifestFor(agent: Agent) {
     return delay(agentToManifest(agent, DEPLOYMENTS, config.azure.subscriptionId || SUB));

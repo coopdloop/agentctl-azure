@@ -1,3 +1,4 @@
+import type { AgentGovernance } from "../lib/governance";
 // TypeScript mirror of agent.schema.json / change-request.schema.json.
 // The JSON Schemas are the contract with the GitOps pipeline; keep both in sync
 // (schema.test.ts checks that the sample manifests validate).
@@ -162,6 +163,8 @@ export interface AgentManifest {
     };
     observability: { tracing: boolean; captureContent: boolean; sampleRate: number };
     lifecycle: { reviewCadenceDays: number; expiresOn?: string };
+    /** Risk tier + attestations for the AI risk controls (lib/governance.ts). */
+    governance?: AgentGovernance;
   };
 }
 

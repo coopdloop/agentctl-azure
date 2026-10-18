@@ -249,6 +249,8 @@ export class LiveDataSource implements DataSource {
     };
   }
   policyStates = memo(() => arm.listPolicyStates(), 300_000);
+  accountPosture = memo(() => arm.listAccountPosture(config.azure.logAnalyticsWorkspaceResourceId), 300_000);
+  defenderPosture = memo(() => arm.listDefenderPosture(), 300_000);
 
   async manifestFor(agent: Agent) {
     const deps = await settle(this.listDeployments(), []);

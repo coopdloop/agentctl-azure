@@ -58,6 +58,7 @@ export function emptyManifest(): AgentManifest {
       },
       observability: { tracing: true, captureContent: false, sampleRate: 1 },
       lifecycle: { reviewCadenceDays: 90 },
+      governance: { riskTier: "medium" },
     },
   };
 }
@@ -145,6 +146,7 @@ export function agentToManifest(agent: Agent, deployments: ModelDeployment[], su
     m.spec.guardrails.raiPolicy.name = `agentctl-${m.metadata.name}`.slice(0, 64);
     if (dep?.raiPolicyName) m.spec.guardrails.raiPolicy.basePolicy = dep.raiPolicyName;
   }
+  if (agent.governance) m.spec.governance = structuredClone(agent.governance);
   m.spec.identity.allowedAuthFlows = agent.tools.some((t) => ["sharepoint_grounding", "fabric_dataagent"].includes(t.type))
     ? ["obo"]
     : ["obo", "app"];
@@ -169,7 +171,7 @@ function toolFromFoundry(t: AgentTool, i: number): ToolSpec {
         type: "mcp",
         riskTier: "write",
         requireApproval,
-        mcp: { serverLabel: name, serverUrl: t.detail?.startsWith("https://") ? t.detail : "https://unknown.invalid", allowedTools: [] },
+        mcp: { serverLabel: name, serverUrl: t.detail?.startsWith("https://") ? t.detail : "https://unknown.invalid", allowedTools: t.allowedTools ?? [] },
       };
     case "azure_function":
       return {
