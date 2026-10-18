@@ -193,11 +193,10 @@ Run locally against the repo on 2026-10-17:
 | Checkov | `modules/agentctl`: 26 passed, 0 failed, 12 justified skips; GitHub Actions: 288 passed, 0 failed |
 | tflint (azurerm ruleset) | 0 issues across 4 roots |
 | actionlint | 0 issues |
-| gitleaks | no leaks in git history. The working tree's **local `terraform.tfstate` holds secrets** (git-ignored, never committed): move state to a remote backend (§7) |
+| gitleaks | no leaks in git history. The reference environment's state was moved to a remote backend (Azure Storage, Entra auth only, shared keys disabled, versioning + 30-day soft delete); local state files deleted |
 | Actions pinning | 18 actions pinned to SHAs at their latest releases |
 
 **Open items:**
 - configure the GitHub settings in §3 once the repo is on GitHub;
-- move Terraform state to a remote backend;
 - first CI run on GitHub (not yet executed);
 - set up DAST once App Service is deployed.
