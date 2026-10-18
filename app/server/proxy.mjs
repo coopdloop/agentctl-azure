@@ -65,9 +65,11 @@ export async function proxyRequest({ target, method = "GET", headers = {}, body,
       const v = headers[h];
       if (typeof v === "string") fwd.set(h, v);
     }
-    // Some hosts (Static Web Apps) consume Authorization; the SPA also sends the token here.
+    // Static Web Apps replaces Authorization on requests to managed functions with its own value,
+    // so the SPA also sends the user's token in x-agentctl-authorization; when present and
+    // well-formed it takes precedence. (Both come from the same browser, so trust is unchanged.)
     const alt = headers["x-agentctl-authorization"];
-    if (!fwd.has("authorization") && typeof alt === "string" && /^Bearer [A-Za-z0-9._~+/=-]+$/.test(alt)) fwd.set("authorization", alt);
+    if (typeof alt === "string" && /^Bearer [A-Za-z0-9._~+/=-]+$/.test(alt)) fwd.set("authorization", alt);
     const upstream = await fetch(`https://${host}${path}`, {
       method,
       headers: fwd,

@@ -114,6 +114,22 @@ Evaluated read-only with the controls engine on 2026-10-17. The 3 agents carry n
 - TL-03 no longer counts the sandboxed code interpreter as an unapproved write tool;
 - client-executed function tools need a sign-off rather than passing on an assumed approval.
 
+## 5b. Static Web Apps deployment (live)
+
+The Free-tier Static Web App was deployed with `scripts/deploy.sh --target swa`.
+
+| Check | Result |
+|---|---|
+| `/` | 200, with CSP, `X-Frame-Options: DENY`, `nosniff` and referrer policy from `staticwebapp.config.json` |
+| `/config.js` | rendered by the `config` function: live mode, client id, redirect URI = site URL, `proxyBase=/api/proxy` |
+| Deep link `/agents` | 200 `index.html` (navigation fallback) |
+| `/assets/*` | `cache-control: public, max-age=31536000, immutable` |
+| `/api/proxy` to a non-allowlisted host | 403 `HostNotAllowed` |
+| `/api/proxy` to the Foundry project with a user token | 200, returns `hr-benefits v2`, `finance-report v1`, `it-helpdesk v1` |
+| `/api/proxy` without a token | 401 from Foundry (the proxy adds no credentials) |
+
+**Found and fixed:** Static Web Apps replaces the `Authorization` header on managed-function requests, so the first deploy got 401 from Foundry. The proxy now prefers the SPA's explicit `x-agentctl-authorization` header.
+
 ## 6. Findings
 
 | # | Finding | Severity | Status |

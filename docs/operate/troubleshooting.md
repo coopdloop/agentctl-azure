@@ -32,7 +32,7 @@
 | "Not available with your access" | Azure returned 403 for that source | expected for scoped users; grant the role if intended ([Access model](../ACCESS.md)) |
 | Identity views empty | no admin consent, or no Entra diagnostic export | consent link; `entra_diagnostics` (needs P1/P2) |
 | Controls show *Unknown* | source unreadable (Defender, identities, policy) | grant Reader on the subscription / admin consent; see the banner on Risk & compliance |
-| Static Web Apps: Foundry calls 401 | `Authorization` stripped by the platform | fixed in the packaged proxy (`x-agentctl-authorization`). Make sure you deployed `agentctl-swa.zip`, not the App Service package |
+| Static Web Apps: Foundry calls 401 | the platform replaces `Authorization` on requests to managed functions | the packaged proxy uses the SPA's `x-agentctl-authorization` header instead. Make sure you deployed `agentctl-swa.zip` (not the App Service package) and a current release |
 
 ## Diagnostics
 

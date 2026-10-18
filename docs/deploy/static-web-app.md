@@ -5,7 +5,7 @@ The default hosting: the SPA as static content, plus two **managed functions** w
 | Route | Function | Does |
 |---|---|---|
 | `/config.js` → `/api/config` | `config` | Renders runtime configuration from the Static Web App's application settings (no secrets) |
-| `/api/proxy/<host>/<path>` | `proxy` | Allowlisted pass-through to Foundry (no browser CORS). Forwards the user's bearer token and adds none |
+| `/api/proxy/<host>/<path>` | `proxy` | Allowlisted pass-through to Foundry (no browser CORS). Forwards the user's bearer token and adds none. Static Web Apps rewrites `Authorization` on function requests, so the SPA also sends the token as `x-agentctl-authorization`, which the proxy prefers |
 
 The SPA calls `/api/proxy` automatically: the config function sets `AGENTCTL_PROXY_BASE=/api/proxy`. Security headers (CSP, `X-Frame-Options`, `nosniff`, referrer policy) come from `staticwebapp.config.json` inside the package.
 

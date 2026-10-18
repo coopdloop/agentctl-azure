@@ -48,7 +48,7 @@ describe("private routing", () => {
 });
 
 describe("proxy core (shared by App Service and Static Web Apps)", () => {
-  it("maps x-agentctl-authorization only when well-formed and Authorization is absent", async () => {
+  it("prefers a well-formed x-agentctl-authorization over Authorization (Static Web Apps rewrites it)", async () => {
     // @ts-expect-error - plain ESM shared with the production server
     const { proxyRequest } = await import("../../../server/proxy.mjs");
     const seen: Headers[] = [];
@@ -63,10 +63,10 @@ describe("proxy core (shared by App Service and Static Web Apps)", () => {
       expect(ok.status).toBe(200);
       expect(seen[0].get("authorization")).toBe("Bearer abc.def");
       expect(ok.headers["set-cookie"]).toBeUndefined(); // response cookies never reach the browser
-      await proxyRequest({ target: "a.services.ai.azure.com/x", headers: { authorization: "Bearer real", "x-agentctl-authorization": "Bearer other" }, allowlist: allow });
-      expect(seen[1].get("authorization")).toBe("Bearer real");
-      await proxyRequest({ target: "a.services.ai.azure.com/x", headers: { "x-agentctl-authorization": "Bearer a b\r\nx: 1" }, allowlist: allow });
-      expect(seen[2].get("authorization")).toBeNull();
+      await proxyRequest({ target: "a.services.ai.azure.com/x", headers: { authorization: "Bearer platform", "x-agentctl-authorization": "Bearer user" }, allowlist: allow });
+      expect(seen[1].get("authorization")).toBe("Bearer user");
+      await proxyRequest({ target: "a.services.ai.azure.com/x", headers: { authorization: "Bearer platform", "x-agentctl-authorization": "Bearer a b\r\nx: 1" }, allowlist: allow });
+      expect(seen[2].get("authorization")).toBe("Bearer platform"); // malformed alt header ignored
       expect((await proxyRequest({ target: "evil.example.com/x", headers: {}, allowlist: allow })).status).toBe(403);
     } finally {
       globalThis.fetch = orig;
