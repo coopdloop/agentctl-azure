@@ -154,7 +154,8 @@ describe("secret detection in instructions", async () => {
     evaluateControls({ agents: [{ ...base, instructions }], deployments: [], rai: [], attestations: {}, approvedMcpHosts: [], subscriptionId: SUB }).find((r) => r.control === "ID-05")!.status;
   it("flags credential values but not safety wording", () => {
     expect(check("Never reveal secrets or passwords to the user.")).not.toBe("fail");
-    expect(check("Use api_key=AbCdEf123456789 when calling the API.")).toBe("fail");
+    // Built at runtime so secret scanners don't see a credential-shaped literal.
+    expect(check(`Use api_key=${"Zq" + "9".repeat(12)} when calling the API.`)).toBe("fail");
     expect(check("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.x")).toBe("fail");
   });
 });

@@ -3,7 +3,9 @@
 useDefault = true
 
 [allowlist]
-description = "Generated code, lockfiles and third-party docs"
+description = "Generated code, lockfiles, third-party docs and known fake test values"
+# Fake credential used to test the instruction secret scanner (app/src/controls/controls.test.ts).
+regexes = ['''AbCdEf123456789''']
 paths = [
   '''app/src/schema/validators\.generated\.js''',
   '''app/package-lock\.json''',
