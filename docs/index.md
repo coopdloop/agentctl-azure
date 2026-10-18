@@ -49,9 +49,9 @@ hide:
 ```mermaid
 flowchart LR
   user([User browser]) -- "sign-in (Entra ID)" --> entra[Entra ID]
-  user -- static SPA + /config.js --> host["agentctl host<br/>Static Web App or App Service"]
+  user -- "static SPA + /config.js" --> host["agentctl host<br/>Static Web App or App Service"]
   user -- "user token (CORS)" --> arm[ARM / Resource Graph]
-  user -- "user token" --> graph[Microsoft Graph]
+  user -- "user token" --> msgraph[Microsoft Graph]
   user -- "user token" --> la[Log Analytics]
   host -- "/proxy (user token)" --> foundry[Foundry Agent Service]
   user -. "download bundle" .-> repo[(agents-gitops<br/>private repo)]
