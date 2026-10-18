@@ -85,6 +85,7 @@ nav:
       - deploy/index.md
       - Quickstart (subscription Owner): deploy/quickstart.md
       - Add to existing Terraform: deploy/existing-terraform.md
+      - Rollout checklist (gotchas): deploy/rollout-checklist.md
       - Azure Static Web Apps: deploy/static-web-app.md
       - Azure App Service: deploy/app-service.md
       - Run locally: deploy/local.md

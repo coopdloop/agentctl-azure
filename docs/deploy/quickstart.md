@@ -158,6 +158,8 @@ echo "https://login.microsoftonline.com/$(az account show --query tenantId -o ts
 
 ## What's next
 
+- **Before a second deployment or handing it to teams:** read the [Rollout checklist](rollout-checklist.md).
+
 - **Give others access:** add people to the role groups (`role_groups.members`) or [data scopes](../ACCESS.md).
 - **Change agents through GitOps:** [Set up your agents repo](../gitops/setup.md).
 - **Harden for production:** remote state, App Service with [private networking](../ENVIRONMENTS.md), Defender for AI, and the failing items on **Risk & compliance**.

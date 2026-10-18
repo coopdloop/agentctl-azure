@@ -111,8 +111,10 @@ locals {
 }
 
 resource "azurerm_role_definition" "telemetry_reader" {
-  count             = length(local.scope_telemetry_grants) > 0 ? 1 : 0
-  name              = "${var.role_groups.name_prefix} Telemetry Reader (${var.environment})"
+  count = length(local.scope_telemetry_grants) > 0 ? 1 : 0
+  # Custom role names are unique per tenant: include the deployment suffix so several deployments
+  # (other subscriptions, same environment name) can coexist.
+  name              = "${var.role_groups.name_prefix} Telemetry Reader (${var.environment}-${random_string.suffix.result})"
   scope             = local.law_id
   description       = "Query agent traces (App Insights App* tables) in the agentctl workspace; no access to other tables."
   assignable_scopes = local.law_all_ids
