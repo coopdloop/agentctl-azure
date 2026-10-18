@@ -23,6 +23,8 @@ permissions:
 
 jobs:
   deploy:
+    # Skips until the environment's Azure variables are configured (see docs: Deploy).
+    if: vars.AZURE_CLIENT_ID != ''
     runs-on: ubuntu-latest
     environment: agentctl-${{ inputs.environment || 'dev' }}
     concurrency:
