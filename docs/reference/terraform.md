@@ -35,7 +35,7 @@ Object inputs accept partial values: omitted attributes take their defaults. See
 | `entra_diagnostics` | object | `{}` | Tenant-level Entra diagnostic setting sending sign-in and Graph activity logs to the workspace. Requires Entra ID P1/P2 and Security Administrator (or higher) for the deployer. Only one of these is needed per tenant/workspace, so leave disabled if your tenant already exports them. |
 | `app_service` | object | `{}` | App Service plan/app settings for the agentctl frontend. |
 | `static_web_app` | object | `{}` | Host agentctl on Azure Static Web Apps instead of (or as well as) App Service. Free tier needs no App Service quota. |
-| `gitops` | object | `{}` | Metadata written into generated bundles. |
+| `gitops` | object | `{}` | The agents-gitops repo. repo ("owner/name" or URL) is written into bundles and used to compare live agents with the desired state. github_client_id (a GitHub App with device flow enabled, installed on the repo) lets users open pull requests from agentctl. No secret is needed. |
 | `approver_groups` | object | `{}` | Approver group names (or object ids) per risk tier, written into change requests. |
 | `bundle_storage` | object | `{}` | Optional storage account for archiving bundles / a future approval queue. Not required today: bundles are downloaded in the browser. Key access is disabled; access is via Entra RBAC only. |
 

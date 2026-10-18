@@ -8,6 +8,10 @@ import { CONTROL_BY_ID, DOMAINS } from "../controls/catalog";
 import { rollup, type Result, type Status } from "../controls/evaluate";
 import { ControlStatus, RollupBar, agentBom, scoreLevel } from "../controls/ui";
 import { useCompliance } from "../controls/useCompliance";
+import { classifyDrift } from "../controls/drift";
+import { DriftBadge } from "../components/Drift";
+import { useRepoAgentState } from "../components/GitHub";
+import { config } from "../config";
 import { downloadBlob } from "../bundle/buildBundle";
 import { Mono } from "../components/common";
 import { useDs } from "../api";
@@ -91,6 +95,7 @@ export function AgentDetailPage() {
               {can("IdentityReader") && <Tab value="identity">Identity & access</Tab>}
               <Tab value="guardrails">Guardrails</Tab>
               <Tab value="compliance">Compliance</Tab>
+              {agent.api !== "assistants" && <Tab value="versions">Versions & drift</Tab>}
               <Tab value="manifest">Manifest</Tab>
             </TabList>
             {tab === "overview" && <OverviewTab agent={agent} range={range} />}
@@ -98,6 +103,7 @@ export function AgentDetailPage() {
             {tab === "identity" && can("IdentityReader") && <IdentityTab agentName={agent.name} range={range} />}
             {tab === "guardrails" && <GuardrailsTab agentId={agent.id} account={agent.account} model={agent.model} />}
             {tab === "compliance" && <ComplianceTab agent={agent} />}
+            {tab === "versions" && <VersionsTab agent={agent} />}
             {tab === "manifest" && <ManifestTab agent={agent} />}
           </>
         )
@@ -363,5 +369,59 @@ function ComplianceTab({ agent }: { agent: AgentT }) {
       </Section>
       <ControlDrawer id={open} results={open ? results.filter((x) => x.control === open) : []} onClose={() => setOpen(null)} />
     </>
+  );
+}
+
+function VersionsTab({ agent }: { agent: AgentT }) {
+  const s = useStyles();
+  const versions = useDs("agentVersions", agent.project, agent.name);
+  const repo = useRepoAgentState(agent.name);
+  return (
+    <QueryState q={versions} label="versions">
+      {(history) => {
+        const drift = classifyDrift(history, repo.data ?? null);
+        return (
+          <>
+            <Section
+              title="GitOps state"
+              description={
+                config.gitops.repo
+                  ? `Live versions compared with ${config.gitops.repo} (${config.gitops.basePath}/${agent.name}/change-request.yaml on the default branch).`
+                  : "Versions deployed by the agents-gitops pipeline carry a manifest hash. Set the GitOps repo to also compare with the desired state in the repo."
+              }
+            >
+              <div className={s.kv}>
+                <span className={s.muted}>State</span>
+                <span>
+                  <DriftBadge drift={drift} /> {drift.summary}
+                </span>
+                <span className={s.muted}>Live version</span>
+                <span>v{drift.live?.version ?? "?"}{drift.live?.manifestSha256 ? ` · manifest ${drift.live.manifestSha256.slice(0, 12)}` : " · no manifest hash"}</span>
+                <span className={s.muted}>Last GitOps deploy</span>
+                <span>{drift.lastManaged ? `v${drift.lastManaged.version} on ${drift.lastManaged.createdAt.slice(0, 10)}` : "never"}</span>
+                {config.gitops.repo && (
+                  <>
+                    <span className={s.muted}>Repo desired state</span>
+                    <span>{repo.isPending && repo.fetchStatus !== "idle" ? "loading…" : repo.isError ? `unavailable (${(repo.error as Error).message})` : repo.data ? `manifest ${repo.data.manifestSha256.slice(0, 12)}` : "agent not in the repo"}</span>
+                  </>
+                )}
+              </div>
+            </Section>
+            <Section title={`${history.length} version(s)`}>
+              <DataTable
+                rows={history}
+                rowKey={(v) => v.version}
+                columns={[
+                  { key: "v", header: "Version", sort: (v) => Number(v.version), render: (v) => <Mono>v{v.version}</Mono> },
+                  { key: "created", header: "Created", sort: (v) => v.createdAt, render: (v) => fmtAgo(v.createdAt) },
+                  { key: "src", header: "Deployed by", render: (v) => (v.manifestSha256 ? <StatusBadge level="good">GitOps</StatusBadge> : <Badge appearance="outline">portal / SDK</Badge>) },
+                  { key: "sha", header: "Manifest", render: (v) => (v.manifestSha256 ? <Mono>{v.manifestSha256.slice(0, 12)}</Mono> : "–") },
+                ]}
+              />
+            </Section>
+          </>
+        );
+      }}
+    </QueryState>
   );
 }

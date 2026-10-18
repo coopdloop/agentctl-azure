@@ -14,6 +14,9 @@ export const SCOPES = {
   graph: [g("User.Read"), g("Application.Read.All"), g("Directory.Read.All"), g("DelegatedPermissionGrant.Read.All")],
   // Entra Agent ID (preview). Requested separately so a tenant without it still works.
   graphAgentId: [g("AgentIdentity.Read.All")],
+  // Conditional Access policies (control ID-04). Separate so missing consent only affects that control.
+  graphPolicy: [g("Policy.Read.All")],
+  // GitHub is not an Entra resource; see api/live/github.ts (device flow).
   logAnalytics: [`${config.cloud.logAnalyticsAudience}/Data.Read`],
   foundry: [config.azure.foundryScope],
 };

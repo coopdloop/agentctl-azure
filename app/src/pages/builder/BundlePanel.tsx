@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { useSession } from "../../auth/session";
 import { buildBundle, downloadBlob, zipBundle, type BundleResult } from "../../bundle/buildBundle";
 import { RiskBadge, Section } from "../../components/common";
+import { OpenPullRequestButton } from "../../components/GitHub";
 import type { AgentManifest } from "../../schema/manifest";
 import { Grid2, Hint } from "./fields";
 
@@ -169,9 +170,12 @@ export function BundlePanel({
         title="Bundle contents"
         description={bundle ? `${Object.keys(files).length} files → ${bundle.folder}/ in the GitOps repo` : "Building…"}
         actions={
-          <Button appearance="primary" icon={<ArrowDownload20Regular />} disabled={!bundle || blockers.length > 0} onClick={download}>
-            Download bundle (.zip)
-          </Button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <OpenPullRequestButton bundle={bundle} proposal={proposal} disabled={blockers.length > 0} />
+            <Button appearance="primary" icon={<ArrowDownload20Regular />} disabled={!bundle || blockers.length > 0} onClick={download}>
+              Download bundle (.zip)
+            </Button>
+          </div>
         }
       >
         <TabList size="small" selectedValue={view} onTabSelect={(_, d) => setView(d.value as string)}>

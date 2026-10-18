@@ -1,7 +1,14 @@
 import { config } from "../../config";
 import { HARNESS_TOOLS } from "../../lib/harnessLibrary";
 import { agentToManifest } from "../../lib/manifestDefaults";
-import type { DefenderPosture, FoundryAccountPosture,
+import type {
+  AgentVersionInfo,
+  ConditionalAccessPolicy,
+  DefenderPosture,
+  EvaluationEvidence,
+  FoundryAccountPosture,
+  ProjectPosture,
+  WorkspacePosture,
   Agent,
   AgentRun,
   AgentStats,
@@ -346,6 +353,53 @@ export class MockDataSource implements DataSource {
         customerManagedKey: false, managedIdentity: true, restrictOutboundNetworkAccess: false, allowedFqdns: 0, diagnosticsToWorkspace: false,
       },
     ]);
+
+  // enterprise-agents uses the standard setup (customer storage); sandbox uses basic storage and a key connection.
+  projectPosture = () =>
+    delay<ProjectPosture[]>(
+      PROJECTS.map((p) => ({
+        projectId: p.id,
+        project: p.name,
+        account: p.account,
+        capabilityHosts: p.name === "sandbox" ? 0 : 1,
+        accountCapabilityHosts: p.account === "aif-contoso-prod" ? 1 : 0,
+        connections:
+          p.name === "sandbox"
+            ? [{ name: "appinsights", category: "AppInsights", authType: "ApiKey" }, { name: "partner-api", category: "CustomKeys", authType: "CustomKeys" }]
+            : [{ name: "appinsights", category: "AppInsights", authType: "ApiKey" }, { name: "kb-search", category: "CognitiveSearch", authType: "AAD" }],
+      })),
+    );
+
+  workspacePosture = () => delay<WorkspacePosture[]>([{ id: `/subscriptions/${SUB}/resourceGroups/rg-monitor/providers/Microsoft.OperationalInsights/workspaces/law-central`, retentionDays: 365 }]);
+
+  conditionalAccess = () =>
+    delay<ConditionalAccessPolicy[]>([
+      { id: "ca-1", displayName: "Require MFA for admins", state: "enabled", targetsAgents: false, targetsServicePrincipals: false },
+      { id: "ca-2", displayName: "Block high-risk agent identities", state: "enabled", targetsAgents: true, targetsServicePrincipals: false },
+    ]);
+
+  evaluationEvidence = () => {
+    const ago = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+    return delay<EvaluationEvidence[]>([
+      { kind: "evaluation", project: "enterprise-agents", account: "aif-contoso-prod", id: "evalrun_hr_01", name: "hr-benefits release eval", status: "completed", createdAt: ago(12), agentNames: ["hr-benefits-assistant"], passed: 48, failed: 2 },
+      { kind: "evaluation", project: "enterprise-agents", account: "aif-contoso-prod", id: "evalrun_it_07", name: "it-helpdesk tool accuracy", status: "failed", createdAt: ago(3), agentNames: ["it-helpdesk-agent"], passed: 0, failed: 0 },
+      { kind: "red_team", project: "security-ops", account: "aif-contoso-prod", id: "rt_soc_04", name: "secops prompt-injection scan", status: "Completed", createdAt: ago(9), agentNames: ["secops-triage-agent"] },
+      { kind: "red_team", project: "enterprise-agents", account: "aif-contoso-prod", id: "rt_hr_02", name: "hr-benefits indirect injection", status: "Completed", createdAt: ago(20), agentNames: ["hr-benefits-assistant"] },
+    ]);
+  };
+
+  /** GitOps-deployed agents have managed versions; it-helpdesk was edited in the portal after its last GitOps deploy. */
+  async agentVersions(_project: string, name: string): Promise<AgentVersionInfo[]> {
+    const ago = (d: number) => new Date(Date.now() - d * 86_400_000).toISOString();
+    const sha = (n: string) => n.padEnd(64, "0");
+    const H: Record<string, AgentVersionInfo[]> = {
+      "hr-benefits-assistant": [{ version: "3", createdAt: ago(5), manifestSha256: sha("9f2c") }, { version: "2", createdAt: ago(40), manifestSha256: sha("71aa") }, { version: "1", createdAt: ago(120) }],
+      "it-helpdesk-agent": [{ version: "4", createdAt: ago(2) }, { version: "3", createdAt: ago(30), manifestSha256: sha("5be1") }, { version: "2", createdAt: ago(90), manifestSha256: sha("40c9") }],
+      "finance-invoice-triage": [{ version: "2", createdAt: ago(14), manifestSha256: sha("9f2c") }, { version: "1", createdAt: ago(200) }],
+      "secops-triage-agent": [{ version: "1", createdAt: ago(25), manifestSha256: sha("9f2c") }],
+    };
+    return delay(H[name] ?? [{ version: "1", createdAt: ago(60) }]);
+  }
 
   defenderPosture = () => {
     const acct = (a: string) => `/subscriptions/${SUB}/resourcegroups/rg-ai-${a}/providers/microsoft.cognitiveservices/accounts/aif-contoso-${a}`;

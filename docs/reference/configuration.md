@@ -48,7 +48,9 @@ Terraform sets all of them; this page is for reference and manual setups. **None
 | `AGENTCTL_ACCESS_SCOPES` | JSON | data scopes ([Access model](../ACCESS.md)) |
 | `AGENTCTL_ATTESTATIONS` | JSON | control sign-offs ([AI risk controls](../CONTROLS.md#sign-offs-attestations)) |
 | `AGENTCTL_APPROVED_MCP_HOSTS` | `mcp.contoso.com` | MCP server registry (TL-02) |
-| `AGENTCTL_GITOPS_REPO` | URL | written into bundles |
+| `AGENTCTL_GITOPS_REPO` | `org/agents-gitops` | agents repo: written into bundles; read for drift (desired state) |
+| `AGENTCTL_GITHUB_CLIENT_ID` | `Iv23li…` | GitHub App (device flow) for opening PRs from agentctl; empty = disabled |
+| `AGENTCTL_GITHUB_API_URL` / `AGENTCTL_GITHUB_URL` | `https://api.github.com` / `https://github.com` | GitHub Enterprise Server endpoints |
 | `AGENTCTL_GITOPS_BASE_PATH` | `agents` | bundle folder in the agents repo |
 | `AGENTCTL_AGENT_MODULE_SOURCE` | `../../../modules/foundry-agent` | module source in generated Terraform |
 | `AGENTCTL_APPROVERS_READ` / `_WRITE` / `_PRIVILEGED` | `agent-owners,platform-security` | approver groups per risk tier (must match the agents repo's `platform/policy.json`) |

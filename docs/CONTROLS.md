@@ -45,8 +45,8 @@ under **Risk & compliance** and in each agent's **Compliance** tab.
 
 | Evidence type | Meaning | Count |
 |---|---|---|
-| Automated | Fully decided from Azure state | 25 |
-| Partial | An automated signal plus a human sign-off for the rest | 20 |
+| Automated | Fully decided from Azure state | 27 |
+| Partial | An automated signal plus a human sign-off for the rest | 18 |
 | Attestation | Sign-off only (e.g. impact assessment, training) | 5 |
 
 Results per target:
@@ -72,7 +72,12 @@ Results per target:
 | Entra Agent ID (Graph beta; sponsors) | GV-02, IR-03 |
 | Azure RBAC + Graph grants | ID-03 |
 | App Insights traces (runs, content capture) | MO-02, DP-04, GV-01 shadow agents |
-| Azure Policy states (approved-model policy) | SC-01 |
+| Azure Policy states (approved-model policy; agent content-filter policies) | SC-01, GR-02/GR-03 |
+| Foundry capability hosts and project connections (ARM) | DP-02, ID-05 |
+| Log Analytics workspace retention (ARM) | MO-06 |
+| Conditional Access policies (Graph, `Policy.Read.All`) | ID-04 |
+| Foundry evaluation runs (`openai/evals`) and red-team runs (`redTeams/runs`, preview) | TE-02, TE-03 (run evidence first, then governance metadata) |
+| Agent version history (agents API) + the agents repo (GitHub, optional) | SC-02 drift: a newer version without a manifest hash means the agent changed outside GitOps |
 
 ## Sign-offs (attestations)
 
@@ -115,9 +120,10 @@ There are two places to record human judgement. Both are reviewed changes, not U
 
 These come from the research's open items; each is shown as a caveat on the control.
 
-- **No documented field links an agent to its guardrail.** Guardrail checks use the agent's model deployment policy. An agent-level guardrail would replace it, which agentctl can't see yet.
+- **The agent object has no guardrail field.** Verified against the agents API: the definition only has `kind`, `model`, `instructions`, `tools`, `temperature` and `top_p`. For GR-02 and GR-03, an **agent-specific** Defender for Cloud assessment or Azure Policy state wins when present. Otherwise the checks use the model deployment's guardrail.
 - **Tool-call and tool-response guardrails (preview) don't cover MCP tools.** For MCP agents, GR-03 shows a warning and TL-02/TL-03/TL-04 are the compensating controls.
 - **Preview filter names** (indirect attack, PII, task adherence) are matched by pattern, case-insensitively.
-- **Not read yet:** Conditional Access for agents (ID-04), capability-host storage (DP-02), workspace retention (MO-06), project connection auth types (ID-05). These are sign-offs until wired.
+- **Conditional Access agent targeting** (ID-04) is matched loosely, since the schema for agent identities is new. `Policy.Read.All` needs admin consent; without it ID-04 shows *Unknown*.
+- **Evaluation and red-team runs** are linked to agents by name in the run's target or data source. Runs that don't mention the agent fall back to the governance metadata.
 - **Client-executed function tools:** approval is enforced by the calling app, so TL-03 asks for a sign-off.
 - **Framework versions move** (ATLAS monthly, AI RMF under revision, MCP Top 10 in beta). Versions are stored in `frameworks.ts`; re-check the mappings when they change.

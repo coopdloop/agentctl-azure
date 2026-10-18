@@ -18,7 +18,8 @@ import type {
   TimeRange,
 } from "../types";
 import * as arm from "./arm";
-import { listProjectAgents } from "./foundry";
+import { listAgentVersions, listProjectAgents } from "./foundry";
+import * as gov from "./governance";
 import * as graph from "./graph";
 import { settle } from "./http";
 import * as Q from "./kql";
@@ -251,6 +252,19 @@ export class LiveDataSource implements DataSource {
   policyStates = memo(() => arm.listPolicyStates(), 300_000);
   accountPosture = memo(() => arm.listAccountPosture(config.azure.logAnalyticsWorkspaceResourceId), 300_000);
   defenderPosture = memo(() => arm.listDefenderPosture(), 300_000);
+  projectPosture = memo(async () => gov.listProjectPosture(await this.listProjects()), 300_000);
+  workspacePosture = memo(() => gov.getWorkspacePosture(), 300_000);
+  conditionalAccess = memo(() => gov.listConditionalAccess(), 300_000);
+  evaluationEvidence = memo(async () => {
+    const [projects, agents] = await Promise.all([this.listProjects(), settle(this.listAgents(), [] as Agent[])]);
+    return gov.listEvaluationEvidence(projects, agents.map((a) => a.name));
+  }, 300_000);
+
+  async agentVersions(project: string, name: string) {
+    const p = (await this.listProjects()).find((x) => x.name === project);
+    if (!p) return [];
+    return listAgentVersions(p, name);
+  }
 
   async manifestFor(agent: Agent) {
     const deps = await settle(this.listDeployments(), []);
@@ -298,6 +312,24 @@ export class LiveDataSource implements DataSource {
         return `${ids.length} identities (${kind === "service_principal_tagged" ? "fallback: tagged SPs" : "Agent ID API"})`;
       }),
       timed("Azure Policy", async () => `${(await this.policyStates()).length} policy states`),
+      timed("Foundry capability hosts / connections", async () => {
+        const p = await this.projectPosture();
+        return `${p.length} project(s), ${p.reduce((n, x) => n + (x.connections?.length ?? 0), 0)} connection(s)`;
+      }),
+      timed("Conditional Access (Policy.Read.All)", async () => `${(await this.conditionalAccess()).length} policies`),
+      timed("Foundry evaluations / red teaming", async () => {
+        const e = await this.evaluationEvidence();
+        return `${e.filter((x) => x.kind === "evaluation").length} evaluation run(s), ${e.filter((x) => x.kind === "red_team").length} red-team run(s)`;
+      }),
+      ...(config.gitops.repo
+        ? [timed("GitHub (agents repo)", async () => {
+            const { readRepoAgentState, parseRepo } = await import("./github");
+            const r = parseRepo(config.gitops.repo);
+            if (!r) throw new Error(`invalid AGENTCTL_GITOPS_REPO "${config.gitops.repo}"`);
+            await readRepoAgentState("__agentctl_probe__");
+            return `${r.owner}/${r.name} reachable${config.github.clientId ? "; PRs via GitHub App device flow" : "; PRs disabled (no GitHub App client id)"}`;
+          })]
+        : []),
     ]);
   }
 }

@@ -1,7 +1,7 @@
 {
   "name": "agentctl",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Agentic platform control plane: agent activity, identity, guardrails and GitOps bundle builder for Azure AI Foundry.",
   "type": "module",
   "engines": {

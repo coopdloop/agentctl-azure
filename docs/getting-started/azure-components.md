@@ -29,7 +29,10 @@ Everything agentctl **creates**, **reads**, or **touches**. Defaults in bold; ev
 | Azure Resource Manager | `management.azure.com` | deployments, RAI policies (guardrails), diagnostic settings, role assignments, policy states, Defender pricing |
 | Foundry Agent Service | `<account>.services.ai.azure.com/api/projects/<project>` (via the host's proxy) | agents, versions, tools, instructions, metadata |
 | Log Analytics | `api.loganalytics.azure.com` | App Insights traces; Entra sign-in and Graph activity logs |
-| Microsoft Graph | `graph.microsoft.com` | app registrations, grants, app role assignments, Entra Agent ID (beta), group membership |
+| Microsoft Graph | `graph.microsoft.com` | app registrations, grants, app role assignments, Entra Agent ID (beta), group membership, Conditional Access policies |
+| Foundry projects (ARM) | `…/capabilityHosts`, `…/connections` | agent storage setup (basic vs standard), connection auth types |
+| Foundry Evals / Red teams | `<project>/openai/evals`, `<project>/redTeams/runs` (via proxy) | evaluation and red-team runs per agent |
+| GitHub (optional) | `api.github.com` (via proxy) | desired state of agents in your agents repo; PRs from agentctl |
 
 ## Created by the agents-gitops pipeline (per agent)
 

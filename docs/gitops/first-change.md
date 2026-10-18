@@ -2,7 +2,7 @@
 
 1. **In agentctl**, open an agent → **Propose change** (Builders) or **Suggest change** (Requesters). For example, inject the mandatory platform instructions, or require approval on a write tool.
 2. **Review & export** shows the diff, computed risk tier and required approvers. Fill in a title and rationale, then **Download bundle (.zip)**.
-3. **In agents-gitops:**
+3. **With the GitHub App configured** ([setup step 9](setup.md#9-open-pull-requests-from-agentctl-optional)), click **Open pull request**, approve the one-time code, and skip to step 4. **Without it**, add the bundle by hand:
    ```bash
    git switch -c change/hr-benefits-harness
    rm -rf agents/hr-benefits && mkdir -p agents/hr-benefits

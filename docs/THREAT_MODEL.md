@@ -71,8 +71,9 @@ STRIDE analysis of agentctl and its GitOps pipeline. Update it when the attack s
 | I1 | Scoped user sees other teams' agents or telemetry | Foundry User per project (Azure-enforced); table-scoped Telemetry Reader (App* only); UI scoping; Resource Graph is RBAC-filtered | Telemetry in a shared workspace isn't split per scope (UI-filtered only); use per-team workspaces for hard isolation |
 | I2 | Prompts and responses exposed via traces | Content-capture finding in Guardrails; trace access limited to the two roles above | Foundry server-side capture is on by default for some flows; decide per agent |
 | I3 | Token theft through XSS | React escaping; strict CSP (`script-src 'self'`, no eval, `frame-ancestors 'none'`); no third-party scripts; tokens in sessionStorage (not localStorage) | Any XSS still reaches sessionStorage; dependency review and CodeQL lower the likelihood |
-| I4 | Proxy leaks tokens to arbitrary hosts (SSRF / open proxy) | Host allowlist: Foundry suffixes plus exact hosts for proxied services; bare suffix rejected; no redirects followed; fixed request-header allowlist; no cookies | Allowlisted hosts are Microsoft-owned; tokens are audience-bound |
+| I4 | Proxy leaks tokens to arbitrary hosts (SSRF / open proxy) | Host allowlist: Foundry suffixes plus exact hosts for proxied services, and `api.github.com` / `github.com` only when the GitHub integration is configured; bare suffix rejected; no redirects followed; fixed request-header allowlist; no cookies | Allowlisted hosts are Microsoft- or GitHub-owned; tokens are audience-bound |
 | I5 | Secrets in Terraform state | State in a remote, Entra-auth backend; never committed (gitleaks, `.gitignore`) | Local state during development (SSDLC open item) |
+| I7 | GitHub user token (PRs from agentctl) stolen | GitHub App user-to-server token: limited to repos the app is installed on and to the user's own access, typically expiring; kept in sessionStorage; sent only to GitHub via the proxy; device flow needs no client secret | Same XSS exposure as Azure tokens (I3) |
 | I6 | Sensitive data in bundles | Bundles contain configuration, not data; `${…}` placeholders for connection ids; the verifier rejects unresolved placeholders at apply | Owners may paste sensitive text into instructions; reviewers see the diff |
 
 ### Denial of service
@@ -88,6 +89,7 @@ STRIDE analysis of agentctl and its GitOps pipeline. Update it when the attack s
 | # | Threat | Mitigations | Residual risk |
 |---|---|---|---|
 | E1 | UI role bypass (editing app state in devtools) | UI gates are convenience only; data and changes are enforced by Azure RBAC and the GitOps gate | A user can build a bundle UI-side, but it still needs approvals |
+| E6 | PRs opened from agentctl skip review | They go through the same branch protection and `agent-bundle / gate` as manual PRs (verify, drift, approvals on the head commit); proposals open as drafts | Users can only open PRs on repos they can already write to |
 | E2 | Requester escalates by adding themselves as owner | Gate uses base owners for updates; proposals require existing owners | Creates: the creator becomes owner, but platform approvers still apply per tier |
 | E3 | Compromise of App Service settings changes runtime config or the proxy allowlist | App Service RBAC (deploy identity only); settings managed by Terraform; diagnostic logs | Contributor on the web app is effectively admin of agentctl; keep that role narrow |
 | E4 | Deploy identity misuse | OIDC subject bound to a GitHub environment; prod requires reviewers; least-privilege roles per environment (agents-gitops README) | RBAC Administrator needed to grant agent roles; constrain it with role-assignment conditions |
@@ -110,3 +112,4 @@ STRIDE analysis of agentctl and its GitOps pipeline. Update it when the attack s
 | Date | Change | Reviewer |
 |---|---|---|
 | 2026-10-17 | Initial model: proxy routing for private networks, data scopes, telemetry role, GitOps gate | platform-security |
+| 2026-10-18 | Static Web Apps hosting (token header precedence), GitHub integration (device flow, PRs, drift), new Azure evidence reads | platform-security |

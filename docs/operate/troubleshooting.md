@@ -34,6 +34,16 @@
 | Controls show *Unknown* | source unreadable (Defender, identities, policy) | grant Reader on the subscription / admin consent; see the banner on Risk & compliance |
 | Static Web Apps: Foundry calls 401 | the platform replaces `Authorization` on requests to managed functions | the packaged proxy uses the SPA's `x-agentctl-authorization` header instead. Make sure you deployed `agentctl-swa.zip` (not the App Service package) and a current release |
 
+## GitHub integration
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| **Open pull request** disabled | `gitops.repo` or `github_client_id` not set, or mock mode | set both in Terraform; switch to Live |
+| `GitHub device flow: … not found` / `device_flow_disabled` | wrong client ID, or device flow not enabled on the app | GitHub App → **Enable Device Flow**; copy the Client ID (not the App ID) |
+| `GitHub 403/404` when opening the PR | app not installed on the repo, or the user lacks write access | install the app on `agents-gitops`; grant the user write access |
+| `GitHub 422: Reference already exists` | a branch for this change request exists | close or delete the old `agentctl/<cr-id>` branch, or export again (new id) |
+| Versions & drift: "Repo desired state unavailable" | private repo without GitHub sign-in, or the API rate limit | open a PR once to sign in (the token is reused), or check the repo name |
+
 ## Diagnostics
 
 - **Data sources** page: per-source health with the exact error.

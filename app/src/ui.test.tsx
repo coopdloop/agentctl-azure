@@ -62,6 +62,8 @@ const ROUTES: [string, string | RegExp][] = [
   ["/review", "Drop a bundle .zip here"],
   ["/settings", "Sources of truth"],
   ["/compliance", "By framework"],
+  ["/agents?drift", "Drifted"],
+  ["/agents/enterprise-agents/asst_itHelp9Kd0PqR2?tab=versions", /Changed outside GitOps/],
   ["/agents/enterprise-agents/asst_itHelp9Kd0PqR2?tab=compliance", "AI bill of materials"],
 ];
 

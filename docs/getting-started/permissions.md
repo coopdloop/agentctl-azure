@@ -74,6 +74,7 @@ These are requested by the SPA and appear on the consent screen. All are delegat
 | Microsoft Graph | `Directory.Read.All` | **yes** | name resolution, groups overage |
 | Microsoft Graph | `DelegatedPermissionGrant.Read.All` | **yes** | OAuth2 grants held by agents |
 | Microsoft Graph (beta) | `AgentIdentity.Read.All` | **yes** | Entra Agent ID identities, blueprints, sponsors (skipped if the tenant doesn't expose it) |
+| Microsoft Graph | `Policy.Read.All` | **yes** | Conditional Access policies (control ID-04); requested only by that check |
 
 ### Admin consent
 
@@ -108,7 +109,8 @@ Until consent is granted:
 | Repo | Who | Needs |
 |---|---|---|
 | agentctl (public) | you | nothing: download releases |
-| agents-gitops (your private repo) | repo admin | create environments, variables, secrets, branch protection; install a GitHub App (org owner or app manager) |
+| agents-gitops (your private repo) | repo admin | create environments, variables, secrets, branch protection; install the gate GitHub App (org owner or app manager) |
+| agents-gitops, from agentctl (optional) | each user | write access to the repo; approves the *agentctl* GitHub App via device flow to open PRs |
 
 ## Checklist
 

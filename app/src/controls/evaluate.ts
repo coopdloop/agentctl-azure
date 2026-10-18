@@ -4,9 +4,10 @@
 
 import type { Attestation } from "../config";
 import type {
-  Agent, AgentIdentity, AgentStats, AzureRoleAssignment, ContentSafety, DefenderPosture, FoundryAccountPosture,
-  ModelDeployment, PermissionGrant, PolicyState, RaiPolicy,
+  Agent, AgentIdentity, AgentStats, AgentVersionInfo, AzureRoleAssignment, ConditionalAccessPolicy, ContentSafety, DefenderPosture,
+  EvaluationEvidence, FoundryAccountPosture, ModelDeployment, PermissionGrant, PolicyState, ProjectPosture, RaiPolicy, WorkspacePosture,
 } from "../api/types";
+import { classifyDrift } from "./drift";
 import { MANDATORY_INJECTIONS } from "../lib/harnessLibrary";
 import { ageDays, type AgentRiskTier } from "../lib/governance";
 import { agentToManifest } from "../lib/manifestDefaults";
@@ -41,6 +42,12 @@ export interface EvalInput {
   safety?: ContentSafety;
   stats?: AgentStats[];
   policy?: PolicyState[];
+  projects?: ProjectPosture[];
+  workspaces?: WorkspacePosture[];
+  ca?: ConditionalAccessPolicy[];
+  evals?: EvaluationEvidence[];
+  /** Version history per agent key (project/id), when loaded: enables drift detection in SC-02. */
+  versions?: Record<string, AgentVersionInfo[]>;
   attestations: Record<string, Attestation>;
   approvedMcpHosts: string[];
   subscriptionId: string;
@@ -51,7 +58,10 @@ type Verdict = { status: Status; evidence: string };
 const v = (status: Status, evidence: string): Verdict => ({ status, evidence });
 
 const PRIVILEGED_ROLES = /^(owner|contributor|user access administrator|role based access control administrator)$/i;
-const SECRET_RE = /(api[_-]?key|secret|password|passwd|bearer\s+[a-z0-9._-]{20,}|sk-[a-z0-9]{20,}|AccountKey=|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i;
+/** Credential-shaped values (not the mere words "secret"/"password", which appear in safety instructions). */
+const SECRET_RE = /((api[_-]?key|client[_-]?secret|secret|password|passwd|pwd|token)\s*[:=]\s*["']?[A-Za-z0-9+/_.~-]{8,}|bearer\s+[a-z0-9._-]{20,}|\bsk-[a-z0-9]{20,}|AccountKey=[A-Za-z0-9+/=]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i;
+/** Connection auth types that carry a static secret. */
+const KEY_AUTH = /^(apikey|accountkey|customkeys|pat|usernamepassword|sas|accesskey|servicePrincipal)$/i;
 const APPROVABLE = new Set(["mcp", "openapi", "azure_function", "function", "connected_agent", "browser_automation"]);
 const KNOWLEDGE_TOOLS = new Set(["file_search", "azure_ai_search", "sharepoint_grounding", "fabric_dataagent"]);
 const OBO_TOOLS = new Set(["sharepoint_grounding", "fabric_dataagent"]);
@@ -117,6 +127,36 @@ export function evaluateControls(input: EvalInput): Result[] {
     const age = ageDays(ref.date, now);
     return age <= maxDays ? v("pass", `${what} ${ref.id} on ${ref.date} (${age} days ago, limit ${maxDays})`) : v("fail", `${what} ${ref.id} is ${age} days old (limit ${maxDays})`);
   };
+  /** Latest successful Foundry run of a kind for the agent (automated evidence for TE-02 / TE-03). */
+  const latestRun = (a: Agent, kind: EvaluationEvidence["kind"]) =>
+    (input.evals ?? [])
+      .filter((e) => e.kind === kind && e.agentNames.includes(a.name) && /^(completed|succeeded)$/i.test(e.status))
+      .sort((x, y) => y.createdAt.localeCompare(x.createdAt))[0];
+  /** Run evidence first (automated), then governance metadata (attested). */
+  const runOrMetadata = (a: Agent, kind: EvaluationEvidence["kind"], ref: { id: string; date: string } | undefined, maxDays: number, what: string): Verdict => {
+    const run = latestRun(a, kind);
+    if (run) {
+      const age = ageDays(run.createdAt, now);
+      const counts = run.passed !== undefined ? ` (${run.passed} passed, ${run.failed ?? 0} failed)` : "";
+      if (age <= maxDays) return v(run.failed ? "warn" : "pass", `Foundry ${what.toLowerCase()} run ${run.name} on ${run.createdAt.slice(0, 10)}${counts}`);
+      if (!ref || ageDays(ref.date, now) > age) return v("fail", `Latest Foundry ${what.toLowerCase()} run is ${age} days old (limit ${maxDays})`);
+    }
+    return freshness(ref, maxDays, what);
+  };
+  /**
+   * Agent-specific guardrail verdicts. The agent object has no guardrail field, so the most specific
+   * evidence wins: a Defender for Cloud assessment or Azure Policy state about this agent, otherwise
+   * the model deployment's guardrail (checked by the caller).
+   */
+  const agentGuardrail = (a: Agent, pattern: RegExp): Verdict | undefined => {
+    const ref = `/agents/${a.name.toLowerCase()}`;
+    const rec = (input.defender ?? []).flatMap((d) => d.recommendations).find((r) => r.resourceId.toLowerCase().includes(ref) && pattern.test(r.name));
+    if (rec && rec.status !== "NotApplicable") return v(rec.status === "Healthy" ? "pass" : "fail", `Defender (agent guardrail): ${rec.name}: ${rec.status}`);
+    const pol = (input.policy ?? []).find((p) => p.resourceId.toLowerCase().includes(ref) && (pattern.test(p.policyDefinitionDisplayName) || /595f98a5|9224c1cc/i.test(p.policyDefinitionName)));
+    if (pol && pol.complianceState !== "Unknown") return v(pol.complianceState === "Compliant" ? "pass" : "fail", `Azure Policy (agent guardrail): ${pol.policyDefinitionDisplayName}: ${pol.complianceState}`);
+    return undefined;
+  };
+  const projectOf = (a: Agent) => input.projects?.find((p) => p.project === a.project && p.account === a.account);
 
   const agentChecks: Record<string, (a: Agent, m: AgentManifest) => Verdict> = {
     "GV-01": (a) => {
@@ -144,8 +184,15 @@ export function evaluateControls(input: EvalInput): Result[] {
     },
     "ID-05": (a, m) => {
       if (SECRET_RE.test(a.instructions)) return v("fail", "Instructions contain a credential-like string");
+      const conns = projectOf(a)?.connections;
+      const keyed = (conns ?? []).filter((c) => KEY_AUTH.test(c.authType));
+      // App Insights connections only support the connection string (ApiKey): flag, don't fail.
+      const hard = keyed.filter((c) => !/^appinsights$/i.test(c.category));
+      if (hard.length) return v("fail", `Project connections with static secrets: ${hard.map((c) => `${c.name} (${c.category}, ${c.authType})`).join(", ")}`);
       const anon = m.spec.tools.filter((t) => t.type === "openapi" && t.openapi?.auth.type === "anonymous");
-      return anon.length ? v("warn", `Anonymous OpenAPI tools: ${anon.map((t) => t.name).join(", ")}`) : v("pass", "No secrets in instructions; tools use managed identity / connections");
+      if (anon.length) return v("warn", `Anonymous OpenAPI tools: ${anon.map((t) => t.name).join(", ")}`);
+      if (keyed.length) return v("warn", `Only key-based connection is App Insights (${keyed.map((c) => c.name).join(", ")}), which supports no other auth type`);
+      return conns ? v("pass", `No secrets in instructions; ${conns.length} project connection(s) use Entra/managed identity`) : v("pass", "No secrets in instructions (project connections not readable)");
     },
     "ID-06": (a) => {
       const data = a.tools.filter((t) => KNOWLEDGE_TOOLS.has(t.type) || ["openapi", "mcp"].includes(t.type));
@@ -172,12 +219,15 @@ export function evaluateControls(input: EvalInput): Result[] {
     "GR-01": (a) => {
       const f = filtersOf(a);
       if (!f) return v("unknown", `Guardrail for deployment ${a.model} not readable`);
-      const missing = ["hate", "sexual", "selfharm", "violence"].filter(
-        (n) => !["Prompt", "Completion"].every((s) => f.has(new RegExp(`^${n}`), { source: s, maxThreshold: "Medium" })),
-      );
+      const harm: [string, RegExp][] = [["hate", /^hate/], ["sexual", /^sexual/], ["selfharm", /^selfharm/], ["violence", /^violence/]];
+      const missing = harm
+        .filter(([, re]) => !["Prompt", "Completion"].every((s) => f.has(re, { source: s, maxThreshold: "Medium" })))
+        .map(([n]) => n);
       return missing.length ? v("fail", `${f.label}: not blocking at Medium on prompt+completion: ${missing.join(", ")}`) : v("pass", `${f.label}${f.builtIn ? " (built-in default)" : ""}: harm categories block at Medium or stricter`);
     },
     "GR-02": (a) => {
+      const own = agentGuardrail(a, /jailbreak/i);
+      if (own) return own;
       const f = filtersOf(a);
       if (!f) return v("unknown", "Guardrail not readable");
       const detected = (input.defender ?? []).flatMap((d) => d.alerts).filter((x) => /Jailbreak.*Detected/i.test(x.alertType) && x.resourceId.includes(`/accounts/${a.account.toLowerCase()}`));
@@ -186,6 +236,8 @@ export function evaluateControls(input: EvalInput): Result[] {
     },
     "GR-03": (a) => {
       if (!a.tools.length) return v("na", "No tools or retrieval");
+      const own = agentGuardrail(a, /indirect prompt injection/i);
+      if (own) return own;
       const f = filtersOf(a);
       if (!f) return v("unknown", "Guardrail not readable");
       const mcp = a.tools.some((t) => t.type === "mcp");
@@ -268,6 +320,12 @@ export function evaluateControls(input: EvalInput): Result[] {
     },
     "MO-03": (a) => (a.agentIdentityId ? v("attest", "Needs Entra sign-in / Graph activity export to reconcile (P1/P2)") : v("fail", "No agent identity to reconcile against")),
     "SC-02": (a) => {
+      const history = input.versions?.[key(a)];
+      if (history) {
+        const d = classifyDrift(history);
+        if (d.state === "drifted") return v("fail", d.summary);
+        if (d.state === "unmanaged") return v("fail", d.summary);
+      }
       const managed = Boolean(a.metadata["agentctl.manifest_sha256"]);
       const dep = depOf(a);
       const pinned = Boolean(dep?.modelVersion);
@@ -276,8 +334,8 @@ export function evaluateControls(input: EvalInput): Result[] {
     },
     "SC-03": (a) => v("pass", `Generated from live state: ${a.tools.length} tools, model ${a.model}`),
     "TE-01": (a) => (tierOf(a) === "low" ? v("na", "Low tier") : freshness(a.governance?.threatModel, 365, "Threat model")),
-    "TE-02": (a) => freshness(a.governance?.evaluation, 180, "Evaluation"),
-    "TE-03": (a) => (tierOf(a) === "low" ? v("na", "Low tier") : freshness(a.governance?.redTeam, tierOf(a) === "high" ? 90 : 365, "Red-team test")),
+    "TE-02": (a) => runOrMetadata(a, "evaluation", a.governance?.evaluation, 180, "Evaluation"),
+    "TE-03": (a) => (tierOf(a) === "low" ? v("na", "Low tier") : runOrMetadata(a, "red_team", a.governance?.redTeam, tierOf(a) === "high" ? 90 : 365, "Red-team")),
     "IR-01": (a) => freshness(a.governance?.killSwitchDrill, tierOf(a) === "high" ? 180 : 365, "Kill-switch drill"),
     "TR-01": (a, m) => {
       if (a.governance?.userFacing === false) return v("na", "Not user-facing");
@@ -301,7 +359,17 @@ export function evaluateControls(input: EvalInput): Result[] {
       if (!sensitive.length) return v("na", "No confidential or high-tier agents");
       return x.customerManagedKey ? v("pass", "Customer-managed key") : v("fail", `Microsoft-managed keys; hosts ${sensitive.length} confidential/high-tier agent(s)`);
     },
-    "DP-02": () => v("attest", "Capability host / user-owned storage not read yet; attest the configuration"),
+    "DP-02": (x) => {
+      if (!input.projects) return v("unknown", "Capability hosts not readable");
+      const mine = input.projects.filter((p) => p.account === x.name);
+      if (!mine.length) return v("na", "No projects discovered on this account");
+      if (mine.every((p) => p.capabilityHosts === null && p.accountCapabilityHosts === null)) return v("unknown", "Capability hosts not readable");
+      // Standard agent setup = a capability host (project or account) wiring customer-owned storage, search and Cosmos DB.
+      const basic = mine.filter((p) => !(p.capabilityHosts ?? 0) && !(p.accountCapabilityHosts ?? 0));
+      return basic.length
+        ? v("fail", `Basic agent setup (threads, files and vector stores in Microsoft-managed storage): ${basic.map((p) => p.project).join(", ")}`)
+        : v("pass", `Standard agent setup (customer-owned storage) on ${mine.length} project(s)`);
+    },
     "MO-01": (x) => (x.diagnosticsToWorkspace === null ? v("unknown", "Diagnostic settings not readable") : x.diagnosticsToWorkspace ? v("pass", "Diagnostic logs → agentctl workspace") : v("fail", "No diagnostic setting to the workspace")),
   };
 
@@ -314,7 +382,18 @@ export function evaluateControls(input: EvalInput): Result[] {
     },
     "GV-05": () => v("attest", "Training records are outside Azure"),
     "GV-06": () => v("attest", "Vendor due-diligence file"),
-    "ID-04": () => v("attest", "Conditional Access for agents isn't read yet"),
+    "ID-04": () => {
+      if (!input.ca) return v("unknown", "Conditional Access not readable (needs Policy.Read.All consent)");
+      const on = input.ca.filter((p) => p.state === "enabled");
+      const agents = on.filter((p) => p.targetsAgents);
+      if (agents.length) return v("pass", `Enabled policies targeting agent identities: ${agents.map((p) => p.displayName).join(", ")}`);
+      const sps = on.filter((p) => p.targetsServicePrincipals);
+      if (sps.length) return v("warn", `Policies target workload identities but not agents explicitly: ${sps.map((p) => p.displayName).join(", ")}`);
+      const reportOnly = input.ca.filter((p) => p.state === "enabledForReportingButNotEnforced" && p.targetsAgents);
+      return reportOnly.length
+        ? v("warn", `Agent policies in report-only mode: ${reportOnly.map((p) => p.displayName).join(", ")}`)
+        : v("fail", `No enabled Conditional Access policy targets agent identities (${input.ca.length} polic${input.ca.length === 1 ? "y" : "ies"} in tenant)`);
+    },
     "MO-04": () => {
       if (!input.defender) return v("unknown", "Defender not readable");
       const off = input.defender.filter((d) => d.aiPlan !== "Standard");
@@ -326,7 +405,12 @@ export function evaluateControls(input: EvalInput): Result[] {
       const n = (input.defender ?? []).reduce((s, d) => s + d.alerts.reduce((t, a) => t + a.count, 0), 0);
       return v("attest", `${n} AI alert(s) in Defender; attest SOC routing and runbooks`);
     },
-    "MO-06": () => v("attest", "Workspace retention isn't read yet"),
+    "MO-06": () => {
+      if (!input.workspaces?.length || input.workspaces.every((w) => w.retentionDays === null)) return v("unknown", "Workspace retention not readable");
+      const short = input.workspaces.filter((w) => (w.retentionDays ?? 0) < 180);
+      if (short.length) return v("fail", `Retention below 180 days: ${short.map((w) => `${w.id.split("/").pop()} (${w.retentionDays} days)`).join(", ")}`);
+      return v("attest", `Retention ${input.workspaces.map((w) => `${w.retentionDays} days`).join(", ")}; attest the immutable (tamper-evident) export`);
+    },
     "SC-01": () => {
       if (!input.policy) return v("unknown", "Azure Policy states not readable");
       const approved = input.policy.filter((p) => /aafe3651|8791d062|approved.?model/i.test(`${p.policyDefinitionName} ${p.policyDefinitionDisplayName}`));

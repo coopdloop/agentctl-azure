@@ -105,3 +105,56 @@ describe("governance in bundles", () => {
     expect((await verifyBundle(b.files)).ok).toBe(true);
   });
 });
+
+describe("automated evidence for former sign-off controls", () => {
+  it("evaluates storage, connections, retention, Conditional Access, eval and red-team runs", async () => {
+    const rs = await run2();
+    expect(find(rs, "DP-02", "aif-contoso-prod").status).toBe("pass"); // standard setup
+    expect(find(rs, "DP-02", "aif-contoso-dev").status).toBe("fail"); // basic setup (sandbox)
+    expect(find(rs, "ID-05", "dev-docs-copilot").status).toBe("fail"); // CustomKeys connection in sandbox
+    expect(find(rs, "ID-05", "hr-benefits-assistant").status).toBe("warn"); // App Insights ApiKey only
+    expect(find(rs, "MO-06", "Environment").status).toBe("attest"); // 365 days; immutability still attested
+    expect(find(rs, "ID-04", "Environment").status).toBe("pass"); // agent-targeted CA policy
+    expect(find(rs, "TE-02", "hr-benefits-assistant").status).toBe("warn"); // run with 2 failures
+    expect(find(rs, "TE-03", "secops-triage-agent").evidence).toMatch(/Foundry red-team run/);
+    expect(find(rs, "SC-02", "it-helpdesk-agent").status).toBe("fail"); // edited outside GitOps
+    expect(find(rs, "SC-02", "it-helpdesk-agent").evidence).toMatch(/Changed outside GitOps/);
+  });
+});
+
+describe("drift classification", async () => {
+  const { classifyDrift } = await import("./drift");
+  const sha = (s: string) => s.padEnd(64, "0");
+  const h = (v: string, s?: string) => ({ version: v, createdAt: "2026-10-01T00:00:00Z", manifestSha256: s ? sha(s) : undefined });
+  it("classifies live vs GitOps vs repo", () => {
+    expect(classifyDrift([h("1")]).state).toBe("unmanaged");
+    expect(classifyDrift([h("3"), h("2", "aa")]).state).toBe("drifted");
+    expect(classifyDrift([h("2", "aa")]).state).toBe("managed");
+    expect(classifyDrift([h("2", "aa")], { manifestSha256: sha("aa"), path: "agents/x" }).state).toBe("in_sync");
+    expect(classifyDrift([h("2", "aa")], { manifestSha256: sha("bb"), baseManifestSha256: sha("aa"), path: "agents/x" }).state).toBe("pending");
+    expect(classifyDrift([h("2", "aa")], { manifestSha256: sha("bb"), baseManifestSha256: sha("cc"), path: "agents/x" }).state).toBe("diverged");
+  });
+});
+
+async function run2() {
+  const ds = new MockDataSource();
+  const agents = await ds.listAgents();
+  const [deployments, rai, accounts, defender, identities, roles, grants, safety, stats, policy, projects, workspaces, ca, evals] = await Promise.all([
+    ds.listDeployments(), ds.raiPolicies(), ds.accountPosture(), ds.defenderPosture(), ds.agentIdentities(), ds.roleAssignments(), ds.permissionGrants(),
+    ds.contentSafety("30d"), ds.agentStats("30d"), ds.policyStates(), ds.projectPosture(), ds.workspacePosture(), ds.conditionalAccess(), ds.evaluationEvidence(),
+  ]);
+  const versions = Object.fromEntries(await Promise.all(agents.map(async (a) => [`${a.project}/${a.id}`, await ds.agentVersions(a.project, a.name)] as const)));
+  return evaluateControls({ agents, deployments, rai, accounts, defender, identities, roles, grants, safety, stats, policy, projects, workspaces, ca, evals, versions, attestations: MOCK_ATTESTATIONS, approvedMcpHosts: MOCK_APPROVED_MCP_HOSTS, subscriptionId: SUB });
+}
+
+describe("secret detection in instructions", async () => {
+  const { evaluateControls } = await import("./evaluate");
+  const base = (await new MockDataSource().listAgents())[0];
+  const check = (instructions: string) =>
+    evaluateControls({ agents: [{ ...base, instructions }], deployments: [], rai: [], attestations: {}, approvedMcpHosts: [], subscriptionId: SUB }).find((r) => r.control === "ID-05")!.status;
+  it("flags credential values but not safety wording", () => {
+    expect(check("Never reveal secrets or passwords to the user.")).not.toBe("fail");
+    expect(check("Use api_key=AbCdEf123456789 when calling the API.")).toBe("fail");
+    expect(check("Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.x")).toBe("fail");
+  });
+});

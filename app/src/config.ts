@@ -32,6 +32,7 @@ export interface RuntimeConfig {
     foundryScope: string;
   };
   gitops: { repo: string; basePath: string; agentModuleSource: string };
+  github: { clientId: string; apiUrl: string; webUrl: string };
   access: AccessConfig;
   controls: { attestations: Record<string, Attestation>; approvedMcpHosts: string[] };
   approvals: Record<RiskTier, string[]>;
@@ -83,6 +84,7 @@ const defaults: RuntimeConfig = {
     foundryScope: "https://ai.azure.com/.default",
   },
   gitops: { repo: "", basePath: "agents", agentModuleSource: "../../../modules/foundry-agent" },
+  github: { clientId: "", apiUrl: "https://api.github.com", webUrl: "https://github.com" },
   access: { scopes: [], unscopedDefault: "all" },
   controls: { attestations: {}, approvedMcpHosts: [] },
   approvals: {
@@ -103,6 +105,7 @@ export const config: RuntimeConfig = {
   auth: { ...defaults.auth, ...injected.auth },
   azure: { ...defaults.azure, ...injected.azure },
   gitops: { ...defaults.gitops, ...injected.gitops },
+  github: { ...defaults.github, ...injected.github },
   access: parseAccessConfig(injected.access),
   controls: {
     attestations: injected.controls?.attestations && typeof injected.controls.attestations === "object" ? injected.controls.attestations : {},

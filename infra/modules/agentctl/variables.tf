@@ -282,7 +282,7 @@ variable "require_app_role_assignment" {
 variable "graph_delegated_scopes" {
   description = "Microsoft Graph delegated scopes requested by the SPA. Unknown scopes in the tenant are skipped."
   type        = list(string)
-  default     = ["User.Read", "Application.Read.All", "Directory.Read.All", "DelegatedPermissionGrant.Read.All", "AgentIdentity.Read.All"]
+  default     = ["User.Read", "Application.Read.All", "Directory.Read.All", "DelegatedPermissionGrant.Read.All", "AgentIdentity.Read.All", "Policy.Read.All"]
 }
 
 variable "grant_admin_consent" {
@@ -357,11 +357,18 @@ variable "static_web_app" {
 }
 
 variable "gitops" {
-  description = "Metadata written into generated bundles."
+  description = <<-EOT
+    The agents-gitops repo. repo ("owner/name" or URL) is written into bundles and used to compare
+    live agents with the desired state. github_client_id (a GitHub App with device flow enabled,
+    installed on the repo) lets users open pull requests from agentctl. No secret is needed.
+  EOT
   type = object({
     repo                = optional(string, "")
     base_path           = optional(string, "agents")
     agent_module_source = optional(string, "../../../modules/foundry-agent")
+    github_client_id    = optional(string, "")
+    github_api_url      = optional(string, "https://api.github.com") # GitHub Enterprise: https://<host>/api/v3
+    github_url          = optional(string, "https://github.com")
   })
   default = {}
 }

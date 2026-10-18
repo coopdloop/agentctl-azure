@@ -130,6 +130,30 @@ The Free-tier Static Web App was deployed with `scripts/deploy.sh --target swa`.
 
 **Found and fixed:** Static Web Apps replaces the `Authorization` header on managed-function requests, so the first deploy got 401 from Foundry. The proxy now prefers the SPA's explicit `x-agentctl-authorization` header.
 
+## 5c. Automated evidence for former sign-off controls (live)
+
+Read-only against the tenant on 2026-10-18:
+
+| Control | Signal | Result |
+|---|---|---|
+| DP-02 | account and project `capabilityHosts` both empty | **fail**: basic agent setup (Microsoft-managed thread/file/vector storage) |
+| ID-05 | project connection `appinsights` uses `ApiKey` | **warning**: the App Insights connection supports no other auth type |
+| MO-06 | workspace `retentionInDays = 30` | **fail**: below 180 days |
+| ID-04 | 0 Conditional Access policies | **fail** |
+| SC-02 | version history: `hr-benefits` v2 has the manifest hash; `finance-report` and `it-helpdesk` never have | pass / **fail** / **fail** |
+| TE-02 / TE-03 | `openai/evals` and `redTeams/runs` (preview header) reachable, no runs yet | needs sign-off (no runs) |
+| GR-02 / GR-03 | the agent object has no guardrail field (confirmed); no agent-specific Defender/Policy verdicts | deployment guardrail used |
+
+**Overall:** 31% (25 pass, 19 fail, 6 warnings, 40 sign-offs). The new checks replaced sign-offs with real failures.
+
+**GitHub integration:**
+- through the dev-server proxy, the public repo and its contents load;
+- the device-flow endpoint is reachable;
+- non-allowlisted GitHub hosts are refused;
+- an end-to-end PR needs a GitHub App (not created).
+
+**Fixed during this work:** the instruction secret scan flagged safety wording ("don't repeat … secrets"). It now matches only credential-shaped values.
+
 ## 6. Findings
 
 | # | Finding | Severity | Status |

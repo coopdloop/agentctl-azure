@@ -248,6 +248,53 @@ export interface DefenderPosture {
   recommendations: { name: string; status: "Healthy" | "Unhealthy" | "NotApplicable"; resourceId: string; severity?: string }[];
 }
 
+/** Agent state storage and connections of a Foundry project (DP-02, ID-05). null = not readable. */
+export interface ProjectPosture {
+  projectId: string;
+  project: string;
+  account: string;
+  /** Capability hosts on the project; 0 with 0 on the account = "basic" (Microsoft-managed) agent storage. */
+  capabilityHosts: number | null;
+  accountCapabilityHosts: number | null;
+  connections: { name: string; category: string; authType: string }[] | null;
+}
+
+export interface WorkspacePosture {
+  id: string;
+  retentionDays: number | null;
+}
+
+export interface ConditionalAccessPolicy {
+  id: string;
+  displayName: string;
+  state: string; // enabled | disabled | enabledForReportingButNotEnforced
+  targetsAgents: boolean;
+  targetsServicePrincipals: boolean;
+}
+
+/** A Foundry evaluation run or red-team run, linked to the agents it targets. */
+export interface EvaluationEvidence {
+  kind: "evaluation" | "red_team";
+  project: string;
+  account: string;
+  id: string;
+  name: string;
+  status: string;
+  createdAt: string;
+  agentNames: string[];
+  passed?: number;
+  failed?: number;
+  url?: string;
+}
+
+/** One version of an agent (agents API), for drift and history. */
+export interface AgentVersionInfo {
+  version: string;
+  createdAt: string;
+  manifestSha256?: string;
+  description?: string;
+}
+
 export interface SourceHealth {
   source: string;
   ok: boolean;
@@ -276,6 +323,12 @@ export interface DataSource {
   policyStates(): Promise<PolicyState[]>;
   accountPosture(): Promise<FoundryAccountPosture[]>;
   defenderPosture(): Promise<DefenderPosture[]>;
+  projectPosture(): Promise<ProjectPosture[]>;
+  workspacePosture(): Promise<WorkspacePosture[]>;
+  conditionalAccess(): Promise<ConditionalAccessPolicy[]>;
+  evaluationEvidence(): Promise<EvaluationEvidence[]>;
+  /** Version history of an agents-API agent (newest first). */
+  agentVersions(project: string, name: string): Promise<AgentVersionInfo[]>;
   /** The current deployed state expressed as a manifest — the "before" for change requests. */
   manifestFor(agent: Agent): Promise<AgentManifest>;
   health(): Promise<SourceHealth[]>;

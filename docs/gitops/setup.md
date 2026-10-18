@@ -171,6 +171,49 @@ approver_groups = {   # must match platform/policy.json
 }
 ```
 
-Re-apply. Bundles now name your repo, and the module path matches the template layout.
+Re-apply. Bundles now name your repo, and the module path matches the template layout. With the repo set, each agent's **Versions & drift** tab also compares the live agent with the desired state in the repo (`agents/<name>/change-request.yaml` on the default branch).
+
+## 9. Open pull requests from agentctl (optional)
+
+Instead of downloading a bundle and committing it by hand, users can click **Open pull request** in agentctl. This needs a **GitHub App with device flow**:
+- agentctl only knows the app's public client ID, so there's no secret to store;
+- each user signs in with a one-time code;
+- their token can only touch repos the app is installed on and that they can already write to.
+
+1. **Settings → Developer settings → GitHub Apps → New GitHub App** (in your org).
+   - Name: `agentctl-<org>`.
+   - Homepage URL: your agentctl URL.
+   - **Callback URL:** leave empty. Turn off **Expire user authorization tokens** only if your policy allows long-lived tokens.
+   - **Enable Device Flow:** ✓.
+   - Webhook: off.
+2. Repository permissions:
+   - **Contents: Read and write**;
+   - **Pull requests: Read and write**;
+   - **Metadata: Read** (automatic).
+3. **Install App** → only `agents-gitops`.
+4. Copy the **Client ID** (starts with `Iv`) into agentctl's Terraform and re-apply:
+   ```hcl
+   gitops = {
+     repo             = "<org>/agents-gitops"
+     base_path        = "agents"
+     agent_module_source = "../../../modules/foundry-agent"
+     github_client_id = "Iv23li…"
+   }
+   ```
+
+**What happens when a user clicks Open pull request:**
+1. agentctl shows a code. The user opens `github.com/login/device` and approves.
+2. agentctl commits the bundle to a new branch `agentctl/<change-request-id>`. That one commit replaces `agents/<name>/`, deleting files the bundle no longer contains.
+3. It opens a PR with:
+   - the rationale, risk tier and required approvers;
+   - the labels `agentctl` and `risk:<tier>`, plus `proposal`;
+   - **draft** status for Requester proposals.
+
+Nothing about the gate changes: the PR goes through **verify → drift → gate** like a manual one.
+
+!!! info "Token handling"
+    - The GitHub token is kept in the browser tab's session storage and sent only to GitHub, through agentctl's allowlisted proxy (GitHub's sign-in endpoints don't support browser CORS).
+    - The proxy allows `api.github.com` only when `gitops.repo` is set, and `github.com` only when `github_client_id` is set.
+    - For GitHub Enterprise Server, set `github_api_url` and `github_url`.
 
 Next: [Your first change](first-change.md).

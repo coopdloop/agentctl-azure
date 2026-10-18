@@ -15,7 +15,8 @@ const DEFAULT_ALLOWED_HOST_SUFFIXES = [
   ".openai.azure.com",
 ];
 
-const FORWARD_REQUEST_HEADERS = ["authorization", "content-type", "accept", "x-ms-client-request-id"];
+// foundry-features opts into Foundry preview APIs (e.g. RedTeams=V1Preview); no credentials.
+const FORWARD_REQUEST_HEADERS = ["authorization", "content-type", "accept", "x-ms-client-request-id", "foundry-features"];
 const DROP_RESPONSE_HEADERS = new Set([
   "content-encoding",
   "content-length",
@@ -60,7 +61,8 @@ export async function proxyRequest({ target, method = "GET", headers = {}, body,
   if (!isAllowedHost(host, allowlist)) return json(403, "HostNotAllowed", `Proxy target ${host} is not allowlisted.`);
   try {
     // Only a fixed allowlist of request headers is forwarded (no cookies, no client IPs).
-    const fwd = new Headers();
+    // A fixed user agent (GitHub's API rejects requests without one); the browser's isn't forwarded.
+    const fwd = new Headers({ "user-agent": "agentctl-proxy" });
     for (const h of FORWARD_REQUEST_HEADERS) {
       const v = headers[h];
       if (typeof v === "string") fwd.set(h, v);

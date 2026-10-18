@@ -8,7 +8,7 @@
 // support on this endpoint has varied; the user's token is forwarded, the proxy holds none.
 
 import { config } from "../../config";
-import type { Agent, FoundryProject } from "../types";
+import type { Agent, AgentVersionInfo, FoundryProject } from "../types";
 import { fromAgentV2, fromAssistant, type FoundryAgentV2, type FoundryAssistant } from "./foundryMap";
 import { apiFetch } from "./http";
 
@@ -31,6 +31,17 @@ async function paged<T extends { id: string }>(url: (after?: string) => string):
 
 const qs = (after?: string) =>
   new URLSearchParams({ "api-version": config.azure.foundryApiVersion, limit: "100", ...(after ? { after } : {}) }).toString();
+
+/** Version history of an agents-API agent, newest first (manifest hash shows GitOps deployments). */
+export async function listAgentVersions(p: FoundryProject, name: string): Promise<AgentVersionInfo[]> {
+  const root = viaProxy(p.endpoint);
+  const versions = await paged<{ id: string; version: string; created_at: number; description?: string; metadata?: Record<string, string> }>(
+    (after) => `${root}/agents/${encodeURIComponent(name)}/versions?${qs(after)}`,
+  );
+  return versions
+    .map((v) => ({ version: v.version, createdAt: new Date(v.created_at * 1000).toISOString(), manifestSha256: v.metadata?.["agentctl.manifest_sha256"], description: v.description }))
+    .sort((a, b) => Number(b.version) - Number(a.version) || b.createdAt.localeCompare(a.createdAt));
+}
 
 /**
  * Lists agents from both APIs. A failure on one API is tolerated (e.g. an older project without

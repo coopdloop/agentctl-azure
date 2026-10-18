@@ -34,6 +34,9 @@ locals {
     AGENTCTL_GITOPS_REPO                  = var.gitops.repo
     AGENTCTL_GITOPS_BASE_PATH             = var.gitops.base_path
     AGENTCTL_AGENT_MODULE_SOURCE          = var.gitops.agent_module_source
+    AGENTCTL_GITHUB_CLIENT_ID             = var.gitops.github_client_id
+    AGENTCTL_GITHUB_API_URL               = var.gitops.github_api_url
+    AGENTCTL_GITHUB_URL                   = var.gitops.github_url
     AGENTCTL_APPROVERS_READ               = join(",", var.approver_groups.read)
     AGENTCTL_APPROVERS_WRITE              = join(",", var.approver_groups.write)
     AGENTCTL_APPROVERS_PRIVILEGED         = join(",", var.approver_groups.privileged)

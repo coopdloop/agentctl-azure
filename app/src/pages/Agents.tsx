@@ -8,6 +8,9 @@ import { extractInjections } from "../lib/manifestDefaults";
 import { MANDATORY_INJECTIONS } from "../lib/harnessLibrary";
 import { fmtAgo, fmtCompact, fmtInt, fmtPct } from "../lib/format";
 import { useUi } from "../state/ui";
+import { DriftBadge } from "../components/Drift";
+import { classifyDrift } from "../controls/drift";
+import { agentKey, useAgentVersions } from "../controls/useCompliance";
 
 const useStyles = makeStyles({
   filters: { display: "flex", gap: "8px", flexWrap: "wrap" },
@@ -26,6 +29,8 @@ export function AgentsPage() {
   const [project, setProject] = useState("all");
 
   const statsBy = useMemo(() => new Map((stats.data ?? []).map((x) => [x.agentName, x])), [stats.data]);
+  const { versions } = useAgentVersions(agents.data ?? []);
+  const drift = useMemo(() => new Map(Object.entries(versions).map(([k, h]) => [k, classifyDrift(h)])), [versions]);
   const projects = [...new Set((agents.data ?? []).map((a) => `${a.account}/${a.project}`))];
 
   return (
@@ -87,6 +92,12 @@ export function AgentsPage() {
                       ) : (
                         "—"
                       ),
+                  },
+                  {
+                    key: "gitops",
+                    header: "GitOps",
+                    sort: (a) => drift.get(agentKey(a))?.state ?? "",
+                    render: (a) => (a.api === "assistants" ? <span className={s.sub}>n/a</span> : <DriftBadge drift={drift.get(agentKey(a))} />),
                   },
                   { key: "env", header: "Env", sort: (a) => a.metadata.environment ?? "", render: (a) => <Badge appearance="tint" color={a.metadata.environment === "prod" ? "danger" : "informative"}>{a.metadata.environment ?? "?"}</Badge> },
                   { key: "model", header: "Model", sort: (a) => a.model, render: (a) => a.model },

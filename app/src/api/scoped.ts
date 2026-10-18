@@ -130,6 +130,22 @@ export function scopeDataSource(inner: DataSource, scope: ResolvedScope): DataSo
       const cs = await inner.contentSafety(range);
       return { filters: cs.filters.filter((f) => names.has(f.agentName)), capture: cs.capture.filter((c) => names.has(c.agentName)) };
     },
+    async projectPosture() {
+      return (await inner.projectPosture()).filter((p) => projectAllowed(scope, p.account, p.project));
+    },
+    // Workspace retention and tenant Conditional Access are environment-wide facts, not team data.
+    workspacePosture: () => inner.workspacePosture(),
+    conditionalAccess: () => inner.conditionalAccess(),
+    async evaluationEvidence() {
+      const { names } = await visibleKeys();
+      return (await inner.evaluationEvidence())
+        .filter((e) => projectAllowed(scope, e.account, e.project))
+        .map((e) => ({ ...e, agentNames: e.agentNames.filter((n) => names.has(n)) }));
+    },
+    async agentVersions(project, name) {
+      const { names } = await visibleKeys();
+      return names.has(name) ? inner.agentVersions(project, name) : [];
+    },
   };
   return scoped;
 }

@@ -115,6 +115,12 @@ KPI tiles (agents, runs, tokens, active users, unapproved write tools, open find
 A searchable inventory across projects: environment, model, tools (unapproved write tools flagged), harness status (mandatory injections present?), owner, runs, failure rate, tokens, last run.
 Detail tabs: **Overview** (effective prompt with platform injections highlighted, definition, tools with risk/approval), **Activity**, **Identity & access** (who uses it, grants, RBAC), **Guardrails** (findings, RAI filters of its deployment), **Manifest** (deployed state reverse-mapped to the manifest schema, i.e. the "before" of any change).
 
+**GitOps state (drift):** the Agents list and each agent's **Versions & drift** tab classify every agents-API agent:
+- *GitOps-managed*: the live version carries the manifest hash;
+- *Drifted*: a newer version without the hash, meaning someone changed it outside GitOps;
+- *Unmanaged*: never deployed through GitOps;
+- with the agents repo configured, also *In sync*, *Pending deploy* or *Diverged* against `agents/<name>/change-request.yaml`.
+
 ### 5.3 Activity & traces
 Runs reconstructed per `OperationId` (caller, auth flow, status, tool calls, tokens, duration), with filters for agent, status and caller. A drawer shows the **span waterfall** (agent → model turns → tool calls).
 
@@ -210,6 +216,8 @@ Bundles live in a separate repo, created from `templates/agents-gitops/` with `s
 
 **On merge** (`deploy-agents`): re-verify, drift check, `terraform init/plan/apply` in the agent's `agents-<env>` GitHub environment (platform backend/providers, per-environment `placeholder_values`, `apply_agent_definition = true`), then confirm the live manifest hash.
 
+**From agentctl:** with a GitHub App client ID configured, **Open pull request** commits the bundle on a new branch and opens the PR. It uses device-flow sign-in with no secret, and proposals open as drafts. The PR goes through the same gate.
+
 Still manual: inlining OpenAPI specs referenced by URL (`apply-agent.sh` refuses them) and decommissioning agents.
 
 ## 8. Infrastructure (Terraform)
@@ -273,7 +281,7 @@ Still manual: inlining OpenAPI specs referenced by URL (`apply-agent.sh` refuses
 - **Telemetry isolation** is per workspace, not per scope (see ACCESS.md §4).
 
 ## 12. Roadmap
-1. ~~GitOps pipeline~~ (done: `templates/agents-gitops`). Next: open PRs from agentctl directly, and show live-vs-manifest drift in the UI.
+1. ~~GitOps pipeline~~, ~~PRs from agentctl~~, ~~drift view~~ (done).
 2. Approval queue in agentctl, backed by the storage account (or Cosmos DB), with Entra-signed approvals.
 3. APIM AI gateway integration: runtime enforcement of limits and tool approval; a gateway telemetry tab.
 4. A Defender for AI alerts tab; Purview DSPM signals.

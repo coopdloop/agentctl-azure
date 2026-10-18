@@ -112,19 +112,17 @@ export const CONTROLS: Control[] = [
     signals: "ARM role assignments and Graph app role assignments / delegated grants of the agent's identity.",
   },
   {
-    id: "ID-04", domain: "ID", title: "Conditional Access for agent identities", severity: "medium", evidence: "partial", scope: ["env"],
+    id: "ID-04", domain: "ID", title: "Conditional Access for agent identities", severity: "medium", evidence: "auto", scope: ["env"],
     description: "A Conditional Access policy targets agent identities (blocks high-risk agents, constrains autonomous agents), and agent risk is monitored.",
     mappings: { asi: ["ASI03", "ASI10", "T9"], rmf: ["MEASURE 2.7", "MANAGE 2.4"], aia: ["Art. 15†"], atlas: ["T0091", "M0019"] },
-    signals: "Graph conditional access policies (not read yet: needs Policy.Read.All).",
-    attest: "Policy name/id and scope.",
-    caveat: "Agent-targeting CA property names unverified.",
+    signals: "Graph /identity/conditionalAccess/policies (delegated Policy.Read.All, admin consent): enabled policies whose client-application conditions include agent identities.",
+    caveat: "Agent-targeting CA property names are new; matched loosely (any include* property mentioning agents).",
   },
   {
     id: "ID-05", domain: "ID", title: "No static secrets in tools or instructions", severity: "high", evidence: "auto", scope: ["agent"],
     description: "Connections and tool credentials use Entra rather than API keys, and no credentials appear in agent instructions.",
     mappings: { llm: ["LLM07"], asi: ["ASI03", "MCP01"], rmf: ["MEASURE 2.7"], atlas: ["T0083", "T0098", "T0082", "M0005"] },
-    signals: "Secret pattern scan of instructions; OpenAPI tool auth type.",
-    caveat: "Connection authType enum unverified; connections not read yet.",
+    signals: "Secret pattern scan of instructions; OpenAPI tool auth type; project connections authType via ARM (ApiKey, AccountKey, CustomKeys, PAT, SAS... fail; App Insights' connection-string-only connection is a warning).",
   },
   {
     id: "ID-06", domain: "ID", title: "On-behalf-of user context for user-data tools", severity: "medium", evidence: "partial", scope: ["agent"],
@@ -155,11 +153,10 @@ export const CONTROLS: Control[] = [
     signals: "ARM encryption.keySource == Microsoft.KeyVault; Azure Policy 67121cc7.",
   },
   {
-    id: "DP-02", domain: "DP", title: "Customer-governed agent state stores", severity: "medium", evidence: "partial", scope: ["account"],
+    id: "DP-02", domain: "DP", title: "Customer-governed agent state stores", severity: "medium", evidence: "auto", scope: ["account"],
     description: "Threads, files and vector stores live in customer-owned storage/search/Cosmos resources under the organisation's own access, retention and network controls.",
     mappings: { llm: ["LLM08"], asi: ["ASI06", "MCP10"], rmf: ["MEASURE 2.10"], iso: ["A.7.3"], atlas: ["T0080", "M0031"] },
-    signals: "ARM userOwnedStorage / capability hosts (not read yet).",
-    attest: "Capability host configuration and storage resources.",
+    signals: "ARM accounts/capabilityHosts and projects/capabilityHosts: none = basic setup (Microsoft-managed storage); present = standard setup with customer-owned storage, search and Cosmos DB.",
   },
   {
     id: "DP-03", domain: "DP", title: "Sensitive data detection and DLP", severity: "medium", evidence: "partial", scope: ["agent"],
@@ -189,19 +186,19 @@ export const CONTROLS: Control[] = [
     description: "The agent's guardrail has Hate, Sexual, Self-harm and Violence enabled and blocking at Medium or stricter on prompts and completions.",
     mappings: { llm: ["LLM09"], rmf: ["MS-2.6", "MG-2.2-001"], iso: ["A.6.2.6"], aia: ["Art. 15†", "Art. 5"], atlas: ["M0020"], mcsb: ["AI-2"] },
     signals: "Deployment raiPolicyName → raiPolicies contentFilters.",
-    caveat: "No documented agent → guardrail field; the model deployment's policy is used.",
+    caveat: "The agent object has no guardrail field (verified against the agents API). Agent-specific Defender / Azure Policy verdicts take precedence for GR-02/GR-03; otherwise the model deployment's policy is used.",
   },
   {
     id: "GR-02", domain: "GR", title: "Direct prompt-attack (jailbreak) shield", severity: "high", evidence: "auto", scope: ["agent"],
     description: "The jailbreak classifier is enabled and blocking on user input for every agent.",
     mappings: { llm: ["LLM01"], asi: ["ASI01", "MCP06"], rmf: ["MS-2.7-007", "MS-2.6-007"], iso: ["A.6.2.6"], aia: ["Art. 15(5)†"], atlas: ["T0051.000", "T0054", "M0020"], mcsb: ["AI-2"] },
-    signals: "Jailbreak filter on the guardrail; Defender 'detected but not blocked' jailbreak alerts.",
+    signals: "Agent-specific Defender assessment or Azure Policy state if present; otherwise the jailbreak filter on the model deployment's guardrail; Defender 'detected but not blocked' jailbreak alerts.",
   },
   {
     id: "GR-03", domain: "GR", title: "Indirect prompt-injection scanning", severity: "high", evidence: "auto", scope: ["agent"],
     description: "Tool outputs and retrieved documents are scanned for indirect prompt injection before entering the agent's context.",
     mappings: { llm: ["LLM01"], asi: ["ASI01", "ASI06", "MCP06", "T6"], rmf: ["MS-2.7-007"], aia: ["Art. 15(5)†"], atlas: ["T0051.001", "T0099", "T0110.002", "M0020", "M0030"], mcsb: ["AI-2"] },
-    signals: "Indirect-attack filter on the guardrail.",
+    signals: "Agent-specific Defender assessment ('Indirect prompt Injection') or Azure Policy state if present; otherwise the indirect-attack filter on the model deployment's guardrail.",
     caveat: "Tool-response scanning excludes MCP tools: TL-02/TL-03/TL-04 are compensating controls.",
   },
   {
@@ -316,8 +313,8 @@ export const CONTROLS: Control[] = [
     id: "MO-06", domain: "MO", title: "Tamper-evident log retention ≥ 6 months", severity: "medium", evidence: "partial", scope: ["env"],
     description: "Agent and platform logs are retained for at least 180 days, with an immutable copy.",
     mappings: { llm: ["LLM08"], asi: ["ASI10", "T8", "MCP08"], rmf: ["GV-1.5-003"], iso: ["A.6.2.8"], aia: ["Art. 19†", "Art. 26(6)†"] },
-    signals: "Workspace retention (not read yet).",
-    attest: "Retention setting and immutable export.",
+    signals: "Log Analytics workspace retentionInDays (ARM); below 180 days fails.",
+    attest: "Immutable (tamper-evident) export, e.g. storage with an immutability policy.",
   },
   // ── Supply chain ──────────────────────────────────────────────────────────────
   {
@@ -330,7 +327,7 @@ export const CONTROLS: Control[] = [
     id: "SC-02", domain: "SC", title: "Change control for agent definitions", severity: "high", evidence: "auto", scope: ["agent"],
     description: "Agent definitions are managed in GitOps with review, and model versions are pinned.",
     mappings: { llm: ["LLM03"], asi: ["ASI04", "T17"], rmf: ["MG-3.1-003", "GOVERN 1.4"], iso: ["A.6.2.5"], aia: ["Art. 25(1)(b)†"] },
-    signals: "agentctl.manifest_sha256 on the live version (deployed via the pipeline); deployment model version.",
+    signals: "Agent version history: the live version carries agentctl.manifest_sha256 (deployed by the pipeline); a newer version without it means the agent was changed outside GitOps (drift). Deployment model version pinned.",
   },
   {
     id: "SC-03", domain: "SC", title: "Agent bill of materials", severity: "low", evidence: "auto", scope: ["agent"],
@@ -350,14 +347,14 @@ export const CONTROLS: Control[] = [
     id: "TE-02", domain: "TE", title: "Pre-release evaluation", severity: "medium", evidence: "partial", scope: ["agent"],
     description: "Quality, safety and agent evaluators (tool-call accuracy, intent resolution, task adherence) pass release criteria before publishing.",
     mappings: { llm: ["LLM09"], asi: ["ASI08"], rmf: ["MEASURE 2.3", "MEASURE 2.5", "MAP 2.3"], iso: ["A.6.2.4"], aia: ["Art. 9(6)†", "Art. 15(1)†"] },
-    signals: "Evaluation run id + date in agent governance metadata (180-day freshness).",
+    signals: "Foundry evaluation runs (OpenAI-compatible Evals API on the project) that target the agent, else the evaluation id + date in governance metadata (180-day freshness).",
     attest: "Release-criteria sign-off.",
   },
   {
     id: "TE-03", domain: "TE", title: "Adversarial and red-team testing", severity: "high", evidence: "partial", scope: ["agent"],
     description: "Direct and indirect prompt injection, tool misuse and exfiltration are tested before release and periodically (90 days for high tier).",
     mappings: { llm: ["LLM01"], asi: ["ASI01", "ASI02", "ASI06"], rmf: ["MS-2.7-007", "MEASURE 1.3"], iso: ["A.6.2.4"], aia: ["Art. 15(5)†"], atlas: ["M0035"], mcsb: ["AI-7"] },
-    signals: "Red-team run id + date in agent governance metadata (AI Red Teaming Agent / PyRIT).",
+    signals: "Foundry red-team runs (AI Red Teaming Agent, preview API) that target the agent, else the red-team id + date in governance metadata.",
     attest: "Report and remediation tracking.",
   },
   // ── Incident & oversight ──────────────────────────────────────────────────────
