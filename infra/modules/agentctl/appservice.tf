@@ -47,6 +47,7 @@ resource "azurerm_linux_web_app" "this" {
   #checkov:skip=CKV_AZURE_13:The SPA authenticates users with MSAL (auth code + PKCE); Easy Auth would conflict with token-per-audience flows. Data access is enforced by Azure RBAC on every API
   #checkov:skip=CKV_AZURE_17:No client-certificate auth: users sign in with Entra ID
   #checkov:skip=CKV_AZURE_88:No persistent storage; the app is stateless
+  #checkov:skip=CKV_AZURE_214:always_on is true except on F1/D1 SKUs, which don't support it (conditional; checkov can't evaluate)
   #checkov:skip=CKV_AZURE_222:Public access is disabled when network.app_private_endpoint = true (conditional; checkov evaluates defaults)
   count               = var.app_service.enabled ? 1 : 0
   name                = local.names.app
