@@ -61,7 +61,12 @@ if [[ "$target" == "appservice" ]]; then
   host="$(az webapp show -g "$rg" -n "$name" --query defaultHostName -o tsv)"
 else
   (cd "$work" && unzip -q "$asset")
-  token="$(az staticwebapp secrets list -g "$rg" -n "$name" --query properties.apiKey -o tsv)"
+  token=""
+  for attempt in 1 2 3; do
+    token="$(az staticwebapp secrets list -g "$rg" -n "$name" --query properties.apiKey -o tsv 2>/dev/null)" && [[ -n "$token" ]] && break
+    echo "retrying deployment token lookup ($attempt)…" >&2; sleep $((attempt * 5))
+  done
+  [[ -n "$token" ]] || { echo "could not read the Static Web App deployment token (needs Contributor on $name)" >&2; exit 1; }
   # Static Web Apps CLI uploads the prebuilt app and the dependency-free functions.
   SWA_CLI_DEPLOYMENT_TOKEN="$token" npx --yes @azure/static-web-apps-cli@2 deploy "$work/app" \
     --api-location "$work/api" --api-language node --api-version 20 --env production
