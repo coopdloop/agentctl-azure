@@ -94,6 +94,15 @@ variable "network" {
   default = {}
 }
 
+variable "control_attestations" {
+  type    = any
+  default = {}
+}
+variable "approved_mcp_hosts" {
+  type    = list(string)
+  default = []
+}
+
 variable "role_groups" {
   type    = any
   default = {}

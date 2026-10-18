@@ -20,6 +20,7 @@ import {
   InstructionsSection,
   KnowledgeSection,
   OpsSection,
+  GovernanceSection,
   PlacementSection,
   ToolsSection,
   type Update,
@@ -189,12 +190,14 @@ export function HarnessPage() {
             <Tab value="guardrails">Guardrails</Tab>
             <Tab value="model">Model & metadata</Tab>
             <Tab value="other">Knowledge & ops</Tab>
+            <Tab value="governance">Risk & governance</Tab>
             <Tab value="review">Review & export</Tab>
           </TabList>
           {tab === "instructions" && <InstructionsSection {...props} />}
           {tab === "tools" && <ToolsSection {...props} />}
           {tab === "identity" && <IdentitySection {...props} />}
           {tab === "guardrails" && <GuardrailsSection {...props} />}
+          {tab === "governance" && <GovernanceSection {...props} />}
           {tab === "model" && (
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
               <PlacementSection {...props} />

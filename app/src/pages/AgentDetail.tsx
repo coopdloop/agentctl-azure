@@ -1,7 +1,15 @@
 import { Badge, Button, Tab, TabList, Text, makeStyles, tokens } from "@fluentui/react-components";
-import { ArrowLeft20Regular, BranchRequest20Regular } from "@fluentui/react-icons";
+import { ArrowDownload20Regular as ArrowDownloadIcon, ArrowLeft20Regular, BranchRequest20Regular } from "@fluentui/react-icons";
 import { useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useDataSource } from "../api";
+import { ControlDrawer } from "./Compliance";
+import { CONTROL_BY_ID, DOMAINS } from "../controls/catalog";
+import { rollup, type Result, type Status } from "../controls/evaluate";
+import { ControlStatus, RollupBar, agentBom, scoreLevel } from "../controls/ui";
+import { useCompliance } from "../controls/useCompliance";
+import { downloadBlob } from "../bundle/buildBundle";
+import { Mono } from "../components/common";
 import { useDs } from "../api";
 import type { Agent, AgentRun, TimeRange } from "../api/types";
 import { toYaml } from "../bundle/buildBundle";
@@ -44,7 +52,8 @@ export function AgentDetailPage() {
   const { range } = useUi();
   const { can, canPropose } = useSession();
   const agentQ = useDs("getAgent", project, id);
-  const [tab, setTab] = useState("overview");
+  const [params] = useSearchParams();
+  const [tab, setTab] = useState(params.get("tab") ?? "overview");
 
   return (
     <QueryState q={agentQ} label="agent">
@@ -81,12 +90,14 @@ export function AgentDetailPage() {
               <Tab value="activity">Activity</Tab>
               {can("IdentityReader") && <Tab value="identity">Identity & access</Tab>}
               <Tab value="guardrails">Guardrails</Tab>
+              <Tab value="compliance">Compliance</Tab>
               <Tab value="manifest">Manifest</Tab>
             </TabList>
             {tab === "overview" && <OverviewTab agent={agent} range={range} />}
             {tab === "activity" && <ActivityTab agentName={agent.name} range={range} />}
             {tab === "identity" && can("IdentityReader") && <IdentityTab agentName={agent.name} range={range} />}
             {tab === "guardrails" && <GuardrailsTab agentId={agent.id} account={agent.account} model={agent.model} />}
+            {tab === "compliance" && <ComplianceTab agent={agent} />}
             {tab === "manifest" && <ManifestTab agent={agent} />}
           </>
         )
@@ -305,5 +316,52 @@ function ManifestTab({ agent }: { agent: AgentT }) {
     <Section title="Current state as manifest" description="Reverse-mapped from the deployed Foundry definition. This is the 'before' side of any change request.">
       <QueryState q={m}>{(man) => <pre className="code" style={{ background: tokens.colorNeutralBackground3 }}>{toYaml(man)}</pre>}</QueryState>
     </Section>
+  );
+}
+
+const STATUS_ORDER: Record<Status, number> = { fail: 0, attest: 1, warn: 2, unknown: 3, pass: 4, na: 5 };
+
+function ComplianceTab({ agent }: { agent: AgentT }) {
+  const s = useStyles();
+  const ds = useDataSource();
+  const { results, loading } = useCompliance();
+  const [open, setOpen] = useState<string | null>(null);
+  const mine = useMemo(
+    () => results.filter((r) => (r.target.kind === "agent" && r.target.name === agent.name) || (r.target.kind === "account" && r.target.name === agent.account)),
+    [results, agent.name, agent.account],
+  );
+  if (loading) return <Text>Evaluating controls…</Text>;
+  const r = rollup(mine);
+  const g = agent.governance;
+  const bom = async () => downloadBlob(new Blob([JSON.stringify(await agentBom(agent, ds), null, 2)], { type: "application/vnd.cyclonedx+json" }), `${agent.name}-aibom.cdx.json`);
+  return (
+    <>
+      <TileGrid>
+        <StatTile label="Control score" value={r.score === null ? "–" : `${r.score}%`} hint={<RollupBar r={r} />} status={scoreLevel(r.score)} />
+        <StatTile label="Failing" value={r.fail} hint="agent + its Foundry account" status={r.fail ? "critical" : "good"} />
+        <StatTile label="Need sign-off" value={r.attest} hint="record in the manifest's governance section" status={r.attest ? "info" : "good"} />
+        <StatTile label="Risk tier" value={g?.riskTier ?? "unset"} hint={g?.intakeId ? `intake ${g.intakeId}` : "no intake record"} status={g?.riskTier ? "good" : "warning"} />
+      </TileGrid>
+      <Section
+        title="Controls"
+        description="Evidence comes from the live agent definition, its guardrail, identity, telemetry and the Foundry account. Attestations travel with the agent version (agentctl.governance metadata)."
+        actions={<Button icon={<ArrowDownloadIcon />} onClick={() => void bom()}>AI bill of materials</Button>}
+      >
+        <DataTable
+          rows={mine}
+          rowKey={(x: Result) => `${x.control}:${x.target.kind}`}
+          onRowClick={(x: Result) => setOpen(x.control)}
+          initialSort={{ key: "status", dir: "asc" }}
+          columns={[
+            { key: "id", header: "ID", sort: (x: Result) => x.control, render: (x: Result) => <Mono>{x.control}</Mono>, width: "72px" },
+            { key: "title", header: "Control", render: (x: Result) => CONTROL_BY_ID.get(x.control)?.title ?? x.control },
+            { key: "domain", header: "Domain", sort: (x: Result) => x.control.slice(0, 2), render: (x: Result) => DOMAINS[CONTROL_BY_ID.get(x.control)!.domain] },
+            { key: "status", header: "Status", sort: (x: Result) => STATUS_ORDER[x.status], render: (x: Result) => <ControlStatus status={x.status} /> },
+            { key: "evidence", header: "Evidence", render: (x: Result) => <span className={x.target.kind === "account" ? s.muted : undefined}>{x.target.kind === "account" ? `[account] ${x.evidence}` : x.evidence}</span> },
+          ]}
+        />
+      </Section>
+      <ControlDrawer id={open} results={open ? results.filter((x) => x.control === open) : []} onClose={() => setOpen(null)} />
+    </>
   );
 }

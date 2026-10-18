@@ -78,6 +78,42 @@ deleted after the move to the agents API.
 
 Not validated: an applied private deployment (needs App Service quota and a VNet), sovereign clouds, and more than one subscription (the tenant has one).
 
+## 5a. AI risk controls against the tenant
+
+Evaluated read-only with the controls engine on 2026-10-17. The 3 agents carry no governance metadata yet, so most sign-off items are open.
+
+| Scope | Score | Fail | Needs sign-off |
+|---|---|---|---|
+| Overall | 33% | 16 | 43 |
+| hr-benefits | 38% | 6 | 12 |
+| finance-report | 36% | 7 | 13 |
+| it-helpdesk | 33% | 7 | 14 |
+
+**Failing controls:**
+- **Every agent:**
+  - GV-01 no risk tier recorded;
+  - DP-04 traces store prompt and response content (F1);
+  - GR-03 no indirect prompt-injection filter (Microsoft.DefaultV2).
+- **Account:**
+  - NW-01 public network access;
+  - NW-02 unrestricted outbound traffic;
+  - DP-01 no customer-managed key while hosting confidential agents.
+- **Environment:**
+  - MO-04 Defender for AI Services is Free (off);
+  - GV-01 traces contain the deleted `probe-agent`.
+- **GitOps:** SC-02: `finance-report` and `it-helpdesk` were not deployed through GitOps.
+
+**Passing** checks include:
+- ID-01 an Entra agent identity per agent;
+- ID-02 local auth disabled;
+- GR-01 and GR-02 harm filters and jailbreak shield (DefaultV2);
+- MO-01 diagnostics to the workspace;
+- MO-02 tracing.
+
+**Evaluator fixes from this run:**
+- TL-03 no longer counts the sandboxed code interpreter as an unapproved write tool;
+- client-executed function tools need a sign-off rather than passing on an assumed approval.
+
 ## 6. Findings
 
 | # | Finding | Severity | Status |

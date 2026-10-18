@@ -95,6 +95,13 @@ bundle_storage = { enabled = false }
 # Hosting. Disable to run the app only locally (e.g. no App Service quota yet).
 app_service = { enabled = true, sku_name = "B1" }
 
+# AI risk controls (docs/CONTROLS.md): environment-wide sign-offs and the MCP server registry.
+approved_mcp_hosts = [] # ["mcp.contoso.com"]
+control_attestations = {
+  # "GV-05" = { status = "attested", evidence = "https://lms.contoso.example/ai-literacy", owner = "platform-security", date = "2026-09-01", expires = "2027-09-01" }
+  # "IR-02" = { status = "attested", evidence = "https://wiki.contoso.example/ai-incident-runbook", owner = "soc", date = "2026-06-15", expires = "2027-06-15" }
+}
+
 # Private networking (docs/ENVIRONMENTS.md §4). Bring your own VNet, subnets and hub DNS zones.
 network = {
   enabled = false

@@ -61,6 +61,8 @@ const ROUTES: [string, string | RegExp][] = [
   ["/harness?project=enterprise-agents&id=asst_itHelp9Kd0PqR2&fix=require-approval", /change/],
   ["/review", "Drop a bundle .zip here"],
   ["/settings", "Sources of truth"],
+  ["/compliance", "By framework"],
+  ["/agents/enterprise-agents/asst_itHelp9Kd0PqR2?tab=compliance", "AI bill of materials"],
 ];
 
 describe("routes render in mock mode", () => {
@@ -85,5 +87,29 @@ describe("routes render in mock mode", () => {
     renderAt("/harness?project=enterprise-agents&id=asst_itHelp9Kd0PqR2&fix=require-approval");
     await waitFor(() => expect(screen.getByText(/preset: Require human approval/)).toBeTruthy(), { timeout: 4000 });
     await waitFor(() => expect(screen.getAllByText(/^change(s)?$/).length).toBeGreaterThan(0), { timeout: 4000 });
+  });
+});
+
+describe("risk & compliance interactions", () => {
+  it("switches tabs and opens a control", async () => {
+    const errors: string[] = [];
+    const spy = vi.spyOn(console, "error").mockImplementation((...a: unknown[]) => {
+      const msg = a.map(String).join(" ");
+      if (!/width\(0\) and height\(0\)|ResizeObserver|not implemented/i.test(msg)) errors.push(msg);
+    });
+    const { fireEvent } = await import("@testing-library/react");
+    renderAt("/compliance");
+    await waitFor(() => expect(screen.getAllByText("By framework").length).toBeGreaterThan(0), { timeout: 4000 });
+    fireEvent.click(screen.getByRole("tab", { name: "Controls" }));
+    await waitFor(() => expect(screen.getByText("50 controls")).toBeTruthy());
+    fireEvent.click(screen.getByText("Human approval for high-impact actions"));
+    await waitFor(() => expect(screen.getByText(/TL-03 · Human approval/)).toBeTruthy());
+    expect(screen.getAllByText(/require approval|without approval/).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("tab", { name: "Frameworks" }));
+    await waitFor(() => expect(screen.getByText("Agent Goal Hijack")).toBeTruthy());
+    fireEvent.click(screen.getByRole("tab", { name: "Agents" }));
+    await waitFor(() => expect(screen.getAllByText("browser-ops-bot").length).toBeGreaterThan(0));
+    spy.mockRestore();
+    expect(errors).toEqual([]);
   });
 });

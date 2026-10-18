@@ -13,6 +13,7 @@ import {
   InstructionsSection,
   KnowledgeSection,
   OpsSection,
+  GovernanceSection,
   PlacementSection,
   ToolsSection,
   type Update,
@@ -29,6 +30,7 @@ const STEPS = [
   { id: "identity", label: "Identity & access", paths: ["/spec/identity", "/spec/access"] },
   { id: "guardrails", label: "Guardrails", paths: ["/spec/guardrails"] },
   { id: "ops", label: "Observability & lifecycle", paths: ["/spec/observability", "/spec/lifecycle"] },
+  { id: "governance", label: "Risk & governance", paths: ["/spec/governance"] },
   { id: "review", label: "Review & export", paths: [] },
 ] as const;
 
@@ -111,6 +113,7 @@ export function BuilderPage() {
           {current.id === "identity" && <IdentitySection {...props} />}
           {current.id === "guardrails" && <GuardrailsSection {...props} />}
           {current.id === "ops" && <OpsSection {...props} />}
+          {current.id === "governance" && <GovernanceSection {...props} />}
           {current.id === "review" && (
             <BundlePanel before={null} after={m} defaultTitle={`Register new agent ${m.metadata.name || "(unnamed)"}`} />
           )}

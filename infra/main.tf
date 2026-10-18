@@ -67,6 +67,8 @@ module "agentctl" {
   observe_all_subscriptions    = var.observe_all_subscriptions
   additional_log_analytics_ids = var.additional_log_analytics_ids
   network                      = var.network
+  control_attestations         = var.control_attestations
+  approved_mcp_hosts           = var.approved_mcp_hosts
 }
 
 output "app_url" { value = module.agentctl.app_url }

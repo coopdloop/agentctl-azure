@@ -127,8 +127,21 @@ Tabs: **Usage by principal** (flow classification above, failures, conditional a
 - **Bulk remediation (Admin):** one change-request bundle per affected agent, in one zip.
 - **Content safety:** a policy × category matrix and deployment → policy mapping. **Content-filter activity:** filtered and jailbreak-detected requests per agent from trace data. **Content capture:** agents whose traces contain prompt/response content are flagged (data-protection finding). **Azure Policy:** compliance list. **Harness library:** a catalog of platform instructions and pre-vetted tools.
 
+### 5.5a Risk & compliance
+50 AI risk controls in 11 domains, cross-walked to OWASP LLM 2025, OWASP Agentic 2026, NIST AI RMF / AI 600-1, ISO/IEC 42001, the EU AI Act, MITRE ATLAS and MCSB v2 AI. They are evaluated against the environment, each Foundry account and each agent from live evidence (agents API, ARM/Resource Graph, Defender, Entra Agent ID, RBAC, traces, Azure Policy) plus sign-offs (agent `spec.governance` → `agentctl.governance` metadata; Terraform `control_attestations`).
+
+Views:
+- framework and domain scores;
+- a controls table with an evidence drawer;
+- per-framework item coverage;
+- an agents matrix;
+- a per-agent Compliance tab with an AI bill of materials (CycloneDX);
+- JSON/CSV evidence export.
+
+Details: **[CONTROLS.md](CONTROLS.md)**.
+
 ### 5.6 Agent builder
-An eight-step wizard: Basics & ownership → Project & model → Instructions & harness → Tools → Knowledge → Identity & access → Guardrails → Observability & lifecycle → Review & export. Step badges show live schema validation. Drafts persist in browser storage.
+A wizard: Basics & ownership → Project & model → Instructions & harness → Tools → Knowledge → Identity & access → Guardrails → Observability & lifecycle → Risk & governance → Review & export. Step badges show live schema validation. Drafts persist in browser storage.
 - **Tools:** all Foundry built-ins (code interpreter, file search, Bing, AI Search, SharePoint, Fabric, browser automation), OpenAPI (operations, auth: MI/connection/anonymous), MCP (server URL, allowed tools), Azure Functions (queue bindings), client-executed **function** tools (JSON Schema parameters, strict mode), and connected agents (A2A).
 - **Risk inference** per tool: OpenAPI non-GET → write, DELETE → privileged; MCP with an empty allowlist → privileged, write-verb tool names → write; browser automation → always privileged with approval "always". Users can raise a tier but not lower it.
 - **Identity:** Agent ID, a dedicated UAMI, or the project MI; allowed flows (delegated/OBO/app); delegated scopes; app roles; Azure RBAC with justifications; access groups, client apps and exposure.
@@ -265,5 +278,5 @@ Still manual: inlining OpenAPI specs referenced by URL (`apply-agent.sh` refuses
 3. APIM AI gateway integration: runtime enforcement of limits and tool approval; a gateway telemetry tab.
 4. A Defender for AI alerts tab; Purview DSPM signals.
 5. ~~Multi-subscription, private networking, cloud profiles~~ (done, ENVIRONMENTS.md). Next: Foundry workflows and hosted agents.
-7. SSDLC: CI (typecheck/test/build, dependency audit, CodeQL, secret scanning, IaC scanning, SBOM), threat model, OIDC deploys.
+7. ~~SSDLC~~ (done, SSDLC.md). ~~AI risk controls catalog~~ (done, CONTROLS.md). Next: read Conditional Access, capability hosts, workspace retention and connection auth to automate the remaining sign-offs; Foundry evaluation / red-team run APIs for TE-02/03.
 6. Kill switch: a harness tool already exists in the catalog; add a platform-side pause list.

@@ -555,3 +555,58 @@ export function OpsSection({ m, update }: SectionProps) {
     </Section>
   );
 }
+
+const EVIDENCE: { key: "impactAssessment" | "threatModel" | "evaluation" | "redTeam" | "killSwitchDrill"; label: string; hint: string; control: string }[] = [
+  { key: "impactAssessment", label: "Impact assessment", hint: "ISO 42005 / FRIA / DPIA id; refresh yearly", control: "GV-04" },
+  { key: "threatModel", label: "Threat model", hint: "Required for medium and high tier", control: "TE-01" },
+  { key: "evaluation", label: "Pre-release evaluation", hint: "Foundry evaluation run id; 180-day freshness", control: "TE-02" },
+  { key: "redTeam", label: "Red-team test", hint: "AI Red Teaming Agent / PyRIT run; 90 days for high tier", control: "TE-03" },
+  { key: "killSwitchDrill", label: "Kill-switch drill", hint: "Last deactivation drill; 180 days for high tier", control: "IR-01" },
+];
+
+/** Risk tier and attestations for the AI risk controls; deployed as agentctl.governance metadata. */
+export function GovernanceSection({ m, update }: SectionProps) {
+  const g = m.spec.governance ?? { riskTier: "medium" as const };
+  const set = (fn: (g: NonNullable<AgentManifest["spec"]["governance"]>) => void) =>
+    update((x) => {
+      x.spec.governance ??= { riskTier: "medium" };
+      fn(x.spec.governance);
+    });
+  return (
+    <Section title="Risk & governance" description="Evidence the AI risk controls check (Risk & compliance page). It travels with every deployed version, so a new version without fresh evidence shows up as stale.">
+      <Grid2>
+        <Field label="Agent risk tier" hint="Drives tool allowlists and evidence freshness. Lowering it needs review.">
+          <RadioGroup layout="horizontal" value={g.riskTier} onChange={(_, d) => set((x) => void (x.riskTier = d.value as typeof g.riskTier))}>
+            <Radio value="low" label="Low" />
+            <Radio value="medium" label="Medium" />
+            <Radio value="high" label="High" />
+          </RadioGroup>
+        </Field>
+        <Field label="Intake / risk register id" hint="GV-03: purpose screened against EU AI Act Art. 5 and Annex III">
+          <Input value={g.intakeId ?? ""} onChange={(_, d) => set((x) => void (x.intakeId = d.value || undefined))} />
+        </Field>
+      </Grid2>
+      {EVIDENCE.map((e) => (
+        <Grid2 key={e.key}>
+          <Field label={`${e.label} (${e.control})`} hint={e.hint}>
+            <Input
+              placeholder="Document or run id"
+              value={g[e.key]?.id ?? ""}
+              onChange={(_, d) => set((x) => void (x[e.key] = d.value ? { id: d.value, date: x[e.key]?.date ?? new Date().toISOString().slice(0, 10) } : undefined))}
+            />
+          </Field>
+          <Field label="Date">
+            <Input type="date" disabled={!g[e.key]} value={g[e.key]?.date ?? ""} onChange={(_, d) => set((x) => void (x[e.key] && d.value && (x[e.key]!.date = d.value)))} />
+          </Field>
+        </Grid2>
+      ))}
+      <Grid2>
+        <Switch label="Interacts directly with people (EU AI Act Art. 50)" checked={Boolean(g.userFacing)} onChange={(_, d) => set((x) => void (x.userFacing = d.checked))} />
+        <Field label="AI-interaction disclosure link (TR-01)" hint="https:// link to the user notice">
+          <Input disabled={!g.userFacing} value={g.disclosure ?? ""} onChange={(_, d) => set((x) => void (x.disclosure = d.value || undefined))} />
+        </Field>
+      </Grid2>
+      <Hint>Evidence ids are references, not documents: keep the documents in your GRC system. Values are visible to anyone who can read the agent.</Hint>
+    </Section>
+  );
+}

@@ -213,6 +213,33 @@ variable "network" {
   }
 }
 
+variable "control_attestations" {
+  description = <<-EOT
+    Human sign-offs for AI risk controls (docs/CONTROLS.md), keyed by control id ("GV-05") or
+    control@agent / control@account ("TL-04@crm-writer"). Reviewed in your infra repo like any change.
+    Agent evidence (impact assessment, red team, ...) belongs in the agent manifest instead.
+  EOT
+  type = map(object({
+    status   = string # attested | risk_accepted | not_applicable
+    evidence = optional(string)
+    owner    = optional(string)
+    date     = string # yyyy-mm-dd
+    expires  = optional(string)
+    note     = optional(string)
+  }))
+  default = {}
+  validation {
+    condition     = alltrue([for k, v in var.control_attestations : contains(["attested", "risk_accepted", "not_applicable"], v.status) && can(regex("^[A-Z]{2}-\\d{2}(@[A-Za-z0-9._-]+)?$", k))])
+    error_message = "Keys must look like GV-05 or TL-04@agent-name; status must be attested, risk_accepted or not_applicable."
+  }
+}
+
+variable "approved_mcp_hosts" {
+  description = "MCP server hosts agents may use (control TL-02), e.g. [\"mcp.contoso.com\"]."
+  type        = list(string)
+  default     = []
+}
+
 variable "access_scopes" {
   description = <<-EOT
     Data scopes. Members of a scope's groups see only that scope's Foundry projects (and optionally

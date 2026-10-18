@@ -38,6 +38,8 @@ locals {
     AGENTCTL_APPROVERS_WRITE              = join(",", var.approver_groups.write)
     AGENTCTL_APPROVERS_PRIVILEGED         = join(",", var.approver_groups.privileged)
     AGENTCTL_ACCESS_SCOPES                = local.access_config
+    AGENTCTL_ATTESTATIONS                 = jsonencode({ for k, v in var.control_attestations : k => { for f, x in v : f => x if x != null } })
+    AGENTCTL_APPROVED_MCP_HOSTS           = join(",", var.approved_mcp_hosts)
   }
 }
 

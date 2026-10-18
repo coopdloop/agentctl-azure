@@ -21,6 +21,7 @@ import {
 } from "@fluentui/react-components";
 import {
   Board20Regular,
+  ClipboardTaskListLtr20Regular,
   Bot20Regular,
   BranchRequest20Regular,
   DocumentCheckmark20Regular,
@@ -46,6 +47,7 @@ const NAV: { to: string; label: string; icon: ReactNode; role?: AppRole; group: 
   { to: "/activity", label: "Activity & traces", icon: <Pulse20Regular />, group: "Observe" },
   { to: "/identity", label: "Identity & access", icon: <PersonKey20Regular />, role: "IdentityReader", group: "Observe" },
   { to: "/guardrails", label: "Guardrails", icon: <ShieldCheckmark20Regular />, group: "Govern" },
+  { to: "/compliance", label: "Risk & compliance", icon: <ClipboardTaskListLtr20Regular />, group: "Govern" },
   { to: "/builder", label: "Agent builder", icon: <Wrench20Regular />, role: "Builder", group: "Change" },
   { to: "/harness", label: "Harness injection", icon: <BranchRequest20Regular />, role: "Builder", group: "Change" },
   { to: "/review", label: "Review bundle", icon: <DocumentCheckmark20Regular />, role: "Approver", group: "Change" },

@@ -86,3 +86,22 @@ describe("governance metadata", () => {
     expect(decodeGovernance('{"t":"h","ia":"x|not-a-date","dl":"javascript:alert(1)"}')).toEqual({ riskTier: "high" });
   });
 });
+
+describe("governance in bundles", () => {
+  it("is written to agent metadata and survives verification; lowering the tier is flagged", async () => {
+    const { buildBundle } = await import("../bundle/buildBundle");
+    const { verifyBundle } = await import("../bundle/verify");
+    const { agentToManifest } = await import("../lib/manifestDefaults");
+    const { AGENTS, DEPLOYMENTS } = await import("../api/mock/seed");
+    const before = agentToManifest(AGENTS[0], DEPLOYMENTS, SUB);
+    expect(before.spec.governance?.riskTier).toBe("high");
+    const after = structuredClone(before);
+    after.spec.governance!.riskTier = "medium";
+    const b = await buildBundle({ before, after, title: "Re-tier HR agent", rationale: "Scope reduced to policy lookups only.", requestedBy: "x@contoso.example" });
+    const payload = JSON.parse(b.files["foundry/agent-definition.json"]);
+    expect(decodeGovernance(payload.metadata["agentctl.governance"])?.riskTier).toBe("medium");
+    const change = b.changeRequest.spec.changes.find((c) => c.path === "/spec/governance")!;
+    expect(change.riskTier).toBe("write");
+    expect((await verifyBundle(b.files)).ok).toBe(true);
+  });
+});

@@ -52,6 +52,7 @@ const v = (status: Status, evidence: string): Verdict => ({ status, evidence });
 
 const PRIVILEGED_ROLES = /^(owner|contributor|user access administrator|role based access control administrator)$/i;
 const SECRET_RE = /(api[_-]?key|secret|password|passwd|bearer\s+[a-z0-9._-]{20,}|sk-[a-z0-9]{20,}|AccountKey=|-----BEGIN [A-Z ]*PRIVATE KEY-----)/i;
+const APPROVABLE = new Set(["mcp", "openapi", "azure_function", "function", "connected_agent", "browser_automation"]);
 const KNOWLEDGE_TOOLS = new Set(["file_search", "azure_ai_search", "sharepoint_grounding", "fabric_dataagent"]);
 const OBO_TOOLS = new Set(["sharepoint_grounding", "fabric_dataagent"]);
 /** Tool types allowed per agent risk tier without a TL-01 attestation. */
@@ -225,11 +226,17 @@ export function evaluateControls(input: EvalInput): Result[] {
       });
       return problems.length ? v("fail", problems.join("; ")) : v("pass", "MCP servers registered, allowed_tools set");
     },
-    "TL-03": (_a, m) => {
-      const risky = m.spec.tools.filter((t) => t.riskTier !== "read");
+    "TL-03": (a, m) => {
+      // Tools that act outside the agent and support approval; sandboxed code interpreter is TL-05.
+      // Manifest tools are in the same order as the live tools; use the live approval setting.
+      const risky = m.spec.tools.map((t, i) => ({ t, live: a.tools[i] })).filter(({ t }) => t.riskTier !== "read" && APPROVABLE.has(t.type));
       if (!risky.length) return v("na", "No write or privileged tools");
-      const open = risky.filter((t) => t.requireApproval !== "always");
-      return open.length ? v("fail", `Write/privileged tools without approval: ${open.map((t) => `${t.name} (${t.requireApproval})`).join(", ")}`) : v("pass", `${risky.length} write/privileged tool(s) require approval`);
+      const server = risky.filter(({ t }) => t.type !== "function");
+      const open = server.filter(({ live }) => live?.requireApproval !== "always");
+      if (open.length) return v("fail", `Write/privileged tools without approval: ${open.map(({ t, live }) => `${t.name} (${live?.requireApproval ?? "never"})`).join(", ")}`);
+      const client = risky.filter(({ t }) => t.type === "function");
+      if (client.length) return v("attest", `${server.length ? `${server.length} server tool(s) require approval; ` : ""}client-executed functions (${client.map(({ t }) => t.name).join(", ")}) need approval enforced by the calling app`);
+      return v("pass", `${risky.length} write/privileged tool(s) require approval`);
     },
     "TL-04": (a) => {
       const defs = a.tools.filter((t) => ["mcp", "openapi"].includes(t.type));
@@ -303,7 +310,7 @@ export function evaluateControls(input: EvalInput): Result[] {
       if (!input.stats) return v("unknown", "Telemetry not readable");
       const known = new Set(input.agents.flatMap((a) => [a.name, a.id]));
       const shadow = input.stats.filter((s) => !known.has(s.agentName)).map((s) => s.agentName);
-      return shadow.length ? v("fail", `Agents seen in traces but not in the inventory: ${shadow.join(", ")}`) : v("pass", `${input.agents.length} agents inventoried; no shadow agents in traces`);
+      return shadow.length ? v("fail", `Agents seen in traces (30 days) but not in the inventory (unregistered or deleted): ${shadow.join(", ")}`) : v("pass", `${input.agents.length} agents inventoried; no shadow agents in traces`);
     },
     "GV-05": () => v("attest", "Training records are outside Azure"),
     "GV-06": () => v("attest", "Vendor due-diligence file"),

@@ -147,6 +147,18 @@ export function computeChanges(before: AgentManifest | null, after: AgentManifes
   if (!same(before.spec.knowledge, after.spec.knowledge)) {
     items.push({ op: "update_other", path: "/spec/knowledge", summary: "Knowledge sources changed", riskTier: "write" });
   }
+  if (!same(before.spec.governance, after.spec.governance)) {
+    // Lowering an agent's risk tier relaxes the controls it is held to, so reviewers must see it.
+    const rank = { low: 0, medium: 1, high: 2 } as const;
+    const b = before.spec.governance?.riskTier, a = after.spec.governance?.riskTier;
+    const lowered = Boolean(b && a && rank[a] < rank[b]);
+    items.push({
+      op: "update_other",
+      path: "/spec/governance",
+      summary: lowered ? `Agent risk tier lowered ${b} → ${a}` : "Governance evidence updated (risk tier, attestations)",
+      riskTier: lowered ? "write" : "read",
+    });
+  }
   if (!same(before.spec.lifecycle, after.spec.lifecycle)) {
     items.push({ op: "update_other", path: "/spec/lifecycle", summary: "Lifecycle settings changed", riskTier: "read" });
   }

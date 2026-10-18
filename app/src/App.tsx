@@ -7,6 +7,7 @@ import { ActivityPage } from "./pages/Activity";
 import { AgentDetailPage } from "./pages/AgentDetail";
 import { AgentsPage } from "./pages/Agents";
 import { BuilderPage } from "./pages/builder/BuilderPage";
+import { CompliancePage } from "./pages/Compliance";
 import { GuardrailsPage } from "./pages/Guardrails";
 import { HarnessPage } from "./pages/Harness";
 import { IdentityPage } from "./pages/Identity";
@@ -70,6 +71,7 @@ export function App() {
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/identity" element={<RoleGate role="IdentityReader"><IdentityPage /></RoleGate>} />
           <Route path="/guardrails" element={<GuardrailsPage />} />
+          <Route path="/compliance" element={<CompliancePage />} />
           <Route path="/builder" element={<ProposeGate><BuilderPage /></ProposeGate>} />
           <Route path="/harness" element={<ProposeGate><HarnessPage /></ProposeGate>} />
           <Route path="/review" element={<RoleGate role="Approver"><ReviewPage /></RoleGate>} />
