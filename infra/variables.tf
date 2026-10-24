@@ -89,6 +89,10 @@ variable "additional_log_analytics_ids" {
   type    = list(string)
   default = []
 }
+variable "additional_foundry_project_endpoints" {
+  type    = list(string)
+  default = []
+}
 variable "network" {
   type    = any
   default = {}

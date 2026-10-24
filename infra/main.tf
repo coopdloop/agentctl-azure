@@ -62,14 +62,15 @@ module "agentctl" {
   access_scopes        = var.access_scopes
   unscoped_default     = var.unscoped_default
 
-  cloud                        = var.cloud
-  observed_subscription_ids    = var.observed_subscription_ids
-  observe_all_subscriptions    = var.observe_all_subscriptions
-  additional_log_analytics_ids = var.additional_log_analytics_ids
-  network                      = var.network
-  control_attestations         = var.control_attestations
-  approved_mcp_hosts           = var.approved_mcp_hosts
-  static_web_app               = var.static_web_app
+  cloud                                = var.cloud
+  observed_subscription_ids            = var.observed_subscription_ids
+  observe_all_subscriptions            = var.observe_all_subscriptions
+  additional_log_analytics_ids         = var.additional_log_analytics_ids
+  additional_foundry_project_endpoints = var.additional_foundry_project_endpoints
+  network                              = var.network
+  control_attestations                 = var.control_attestations
+  approved_mcp_hosts                   = var.approved_mcp_hosts
+  static_web_app                       = var.static_web_app
 }
 
 output "app_url" { value = module.agentctl.app_url }
