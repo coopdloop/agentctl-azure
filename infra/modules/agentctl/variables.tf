@@ -158,6 +158,16 @@ variable "observe_all_subscriptions" {
   default     = false
 }
 
+variable "additional_foundry_project_endpoints" {
+  description = "More Foundry project endpoints (https://<account>.services.ai.azure.com/api/projects/<project>) to observe, e.g. projects created outside this module. Listed after the module's own project."
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = alltrue([for e in var.additional_foundry_project_endpoints : can(regex("^https://[^./]+\\.(services\\.ai\\.azure\\.com|cognitiveservices\\.azure\\.com)/api/projects/[^/?#]+$", e))])
+    error_message = "Each endpoint must look like https://<account>.services.ai.azure.com/api/projects/<project>."
+  }
+}
+
 variable "additional_log_analytics_ids" {
   description = "Resource ids of more Log Analytics workspaces (any subscription) queried together with the primary one, e.g. per-team App Insights workspaces."
   type        = list(string)

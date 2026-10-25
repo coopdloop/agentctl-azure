@@ -29,7 +29,7 @@ locals {
     AGENTCTL_LAW_WORKSPACE_ID             = local.law_customer_id
     AGENTCTL_LAW_RESOURCE_ID              = local.law_id
     AGENTCTL_APPINSIGHTS_RESOURCE_ID      = local.appi_id
-    AGENTCTL_FOUNDRY_PROJECT_ENDPOINTS    = local.foundry_project_endpoint
+    AGENTCTL_FOUNDRY_PROJECT_ENDPOINTS    = join(",", compact(concat([local.foundry_project_endpoint], var.additional_foundry_project_endpoints)))
     AGENTCTL_FOUNDRY_API_VERSION          = "v1"
     AGENTCTL_GITOPS_REPO                  = var.gitops.repo
     AGENTCTL_GITOPS_BASE_PATH             = var.gitops.base_path
